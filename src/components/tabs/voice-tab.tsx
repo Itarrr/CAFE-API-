@@ -409,7 +409,12 @@ function MasterRegistrationView() {
 
     for (const line of lines) {
       if (line.startsWith('アイテム名') || line.startsWith('商品名') || line.startsWith('品目')) continue;
-      const cols = line.split('\t').map((c) => c.trim());
+      // タブ区切り優先、なければ2つ以上のスペース、最後にカンマ区切り
+      const cols = line.includes('\t')
+        ? line.split('\t').map((c) => c.trim())
+        : line.includes(',')
+          ? line.split(',').map((c) => c.trim())
+          : line.split(/\s{2,}/).map((c) => c.trim());
       const name = cols[0] ?? '';
       const category = cols[1] || '未分類';
       const unit = cols[2] || '個';
