@@ -51,11 +51,13 @@ export default function BackyardTab() {
 
 // ─── 買い出しリスト ──────────────────────────────
 function ShoppingListView() {
-  const { state } = useAppState();
+  const { state, setState } = useAppState();
   const [newItem, setNewItem] = useState('');
   const [manualItems, setManualItems] = useState<{ id: string; text: string; done: boolean }[]>([]);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
   const todayDow = today.getDay();
   const shoppingDay = state.settings.shoppingDay ?? 1;
   const isShoppingDay = shoppingDay === -1 || todayDow === shoppingDay;
@@ -76,14 +78,52 @@ function ShoppingListView() {
   const foodNeedOrder = needOrderItems.filter((i) => (i.itemType ?? 'food') === 'food');
   const supplyNeedOrder = needOrderItems.filter((i) => i.itemType === 'supply');
 
+  // 入荷チェック
+  const toggleCheck = (itemName: string) => {
+    setCheckedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemName)) next.delete(itemName); else next.add(itemName);
+      return next;
+    });
+  };
+
+  // 一括チェック
+  const checkAll = () => {
+    setCheckedItems(new Set(needOrderItems.map((i) => i.name)));
+  };
+
+  // 入荷確定：チェック済み品目の在庫を発注数分加算
+  const confirmArrival = () => {
+    if (checkedItems.size === 0) return;
+    setState((s) => {
+      const newStock = [...(s.localStock ?? [])];
+      for (const itemName of checkedItems) {
+        const master = s.inventoryItems.find((m) => m.name === itemName);
+        if (!master) continue;
+        const idx = newStock.findIndex((st) => st.itemName === itemName);
+        const addQty = master.orderQuantity ?? 5;
+        if (idx >= 0) {
+          newStock[idx] = { ...newStock[idx], quantity: newStock[idx].quantity + addQty, lastUpdated: todayStr };
+        } else {
+          newStock.push({
+            itemName, quantity: addQty, unit: master.unit, category: master.category,
+            itemType: master.itemType ?? 'food', lastUpdated: todayStr,
+          });
+        }
+      }
+      return { ...s, localStock: newStock };
+    });
+    setCheckedItems(new Set());
+  };
+
   const addItem = () => {
     if (!newItem.trim()) return;
     setManualItems([...manualItems, { id: `${Date.now()}`, text: newItem.trim(), done: false }]);
     setNewItem('');
   };
 
-  const toggleItem = (id: string) => setManualItems(manualItems.map((i) => i.id === id ? { ...i, done: !i.done } : i));
-  const removeItem = (id: string) => setManualItems(manualItems.filter((i) => i.id !== id));
+  const toggleManual = (id: string) => setManualItems(manualItems.map((i) => i.id === id ? { ...i, done: !i.done } : i));
+  const removeManual = (id: string) => setManualItems(manualItems.filter((i) => i.id !== id));
 
   const renderOrderGroup = (title: string, items: typeof needOrderItems, color: string) => {
     if (items.length === 0) return null;
@@ -96,24 +136,37 @@ function ShoppingListView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pb-2 space-y-1">
-          {items.map((item) => (
-            <div key={item.id} className={`flex items-center justify-between py-2 px-3 rounded-xl ${item.currentQty <= 0 ? 'bg-red-50' : 'bg-amber-50'}`}>
-              <div>
-                <span className="text-sm font-medium">{item.name}</span>
-                <span className="text-[10px] text-gray-400 ml-1">({item.category})</span>
-              </div>
-              <div className="text-right">
+          {items.map((item) => {
+            const isChecked = checkedItems.has(item.name);
+            return (
+              <button key={item.id} onClick={() => toggleCheck(item.name)}
+                className={`w-full flex items-center justify-between py-2 px-3 rounded-xl transition-all text-left ${
+                  isChecked ? 'bg-green-50 border border-green-200' : item.currentQty <= 0 ? 'bg-red-50' : 'bg-amber-50'
+                }`}>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs ${item.currentQty <= 0 ? 'text-red-500' : 'text-amber-500'}`}>
-                    残{item.currentQty}{item.unit}
-                  </span>
-                  <Badge className="bg-[#ff6b6b] text-white rounded-full text-xs">
-                    {item.orderQty}{item.unit}発注
-                  </Badge>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs shrink-0 ${
+                    isChecked ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300'
+                  }`}>
+                    {isChecked && '✓'}
+                  </div>
+                  <div>
+                    <span className={`text-sm font-medium ${isChecked ? 'line-through text-gray-400' : ''}`}>{item.name}</span>
+                    <span className="text-[10px] text-gray-400 ml-1">({item.category})</span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+                <div className="text-right shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${item.currentQty <= 0 ? 'text-red-500' : 'text-amber-500'}`}>
+                      残{item.currentQty}{item.unit}
+                    </span>
+                    <Badge className="bg-[#ff6b6b] text-white rounded-full text-xs">
+                      {item.orderQty}{item.unit}
+                    </Badge>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </CardContent>
       </Card>
     );
@@ -139,12 +192,27 @@ function ShoppingListView() {
       {/* 発注が必要な品目 */}
       {needOrderItems.length > 0 ? (
         <>
-          <div className="flex items-center gap-2 px-1">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-medium text-amber-700">発注が必要: {needOrderItems.length}品目</span>
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <span className="text-sm font-medium text-amber-700">発注が必要: {needOrderItems.length}品目</span>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={checkAll} className="h-7 text-xs rounded-xl">
+                一括チェック
+              </Button>
+            </div>
           </div>
+
           {renderOrderGroup('食材', foodNeedOrder, 'text-orange-500')}
           {renderOrderGroup('備品', supplyNeedOrder, 'text-blue-500')}
+
+          {/* 入荷確定ボタン */}
+          {checkedItems.size > 0 && (
+            <Button onClick={confirmArrival} className="w-full h-12 bg-green-500 hover:bg-green-600 rounded-2xl text-base font-bold">
+              <Check className="w-5 h-5 mr-2" />入荷確定（{checkedItems.size}品目の在庫を更新）
+            </Button>
+          )}
         </>
       ) : (
         <Card className="border border-green-200 bg-green-50 rounded-2xl">
@@ -178,13 +246,13 @@ function ShoppingListView() {
         <div className="space-y-1.5">
           {manualItems.map((item) => (
             <div key={item.id} className={`flex items-center justify-between py-2 px-3 rounded-xl bg-white shadow-sm ${item.done ? 'opacity-50' : ''}`}>
-              <button onClick={() => toggleItem(item.id)} className="flex items-center gap-2 flex-1 text-left">
+              <button onClick={() => toggleManual(item.id)} className="flex items-center gap-2 flex-1 text-left">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${item.done ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300'}`}>
                   {item.done && '✓'}
                 </div>
                 <span className={`text-sm ${item.done ? 'line-through text-gray-400' : ''}`}>{item.text}</span>
               </button>
-              <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-400 text-xs ml-2">✕</button>
+              <button onClick={() => removeManual(item.id)} className="text-gray-300 hover:text-red-400 text-xs ml-2">✕</button>
             </div>
           ))}
         </div>

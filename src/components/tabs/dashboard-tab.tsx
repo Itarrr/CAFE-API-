@@ -14,13 +14,16 @@ import type { DailyGoal, StoreStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
+import type { TabId } from '@/components/bottom-nav';
 import {
   DollarSign, Users, Zap, Star,
   Clock, Activity, Plus, Target, Coffee,
-  Sunrise, Trophy, Sparkles, Eye, Mic, CheckCircle,
+  Sunrise, Trophy, Sparkles, Eye, Mic, CheckCircle, ShoppingCart,
 } from 'lucide-react';
 
-export default function DashboardTab() {
+const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+export default function DashboardTab({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
   const { state, setState } = useAppState();
   const now = new Date();
   const [openingModal, setOpeningModal] = useState(false);
@@ -126,6 +129,39 @@ export default function DashboardTab() {
           {goal?.dayType === 'weekday' ? '平日' : goal?.dayType === 'weekend' ? '土日' : '祝日'}
         </Badge>
       </div>
+
+      {/* 買い出し日バナー */}
+      {(() => {
+        const shoppingDay = state.settings.shoppingDay ?? 1;
+        const todayDow = now.getDay();
+        const isShoppingDay = shoppingDay === -1 || todayDow === shoppingDay;
+        if (!isShoppingDay) return null;
+
+        const localStock = state.localStock ?? [];
+        const needOrderCount = state.inventoryItems.filter((m) => {
+          const stock = localStock.find((s) => s.itemName === m.name);
+          return (stock?.quantity ?? 0) <= (m.minStock ?? 3);
+        }).length;
+
+        return (
+          <button onClick={() => onNavigate('backyard')} className="w-full text-left">
+            <Card className="rounded-2xl border border-[#ff6b6b] bg-[#fff5f5] shadow-sm">
+              <CardContent className="py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-[#ff6b6b]" />
+                  <div>
+                    <p className="text-sm font-bold text-[#ff6b6b]">今日は買い出しの日です</p>
+                    <p className="text-xs text-gray-500">
+                      {needOrderCount > 0 ? `${needOrderCount}品目の発注が必要です` : '在庫は十分です'}
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-[#ff6b6b] text-white rounded-full text-xs">確認する</Badge>
+              </CardContent>
+            </Card>
+          </button>
+        );
+      })()}
 
       {/* Store Status Toggle */}
       <Card className="rounded-2xl border-0 shadow-sm">

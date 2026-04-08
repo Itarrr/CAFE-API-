@@ -53,7 +53,7 @@ export default function MainApp() {
 
       {/* Content */}
       <main className="max-w-[1200px] mx-auto px-4 md:px-8 py-5 pb-28">
-        {tab === 'dashboard' && <DashboardTab />}
+        {tab === 'dashboard' && <DashboardTab onNavigate={setTab} />}
         {tab === 'tasks' && <TasksTab />}
         {tab === 'shift' && <ShiftTab />}
         {tab === 'recipes' && <RecipeTab />}
