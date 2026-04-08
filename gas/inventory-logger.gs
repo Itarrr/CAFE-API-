@@ -128,12 +128,57 @@ function handleVoiceLog(json) {
 // ============================================================
 // GET ハンドラ（動作確認用）
 // ============================================================
-function doGet() {
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || 'health';
+
+  if (action === 'getStock') {
+    return handleGetStock();
+  }
+
   return buildResponse(200, {
     status: 'ok',
     message: 'カフェ在庫管理 GAS v2 が稼働中です',
-    sheets: [SHEET_MASTER_FOOD, SHEET_MASTER_SUPPLY, SHEET_STOCK_FOOD, SHEET_STOCK_SUPPLY, SHEET_LOG, SHEET_URGENT, SHEET_HANDOVER, SHEET_SHOPPING, SHEET_RAW_LOG],
   });
+}
+
+// ============================================================
+// 在庫データ取得（食材・備品）
+// ============================================================
+function handleGetStock() {
+  var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  var food = readSheetData(ss, SHEET_STOCK_FOOD);
+  var supply = readSheetData(ss, SHEET_STOCK_SUPPLY);
+
+  return buildResponse(200, {
+    status: 'ok',
+    food: food,
+    supply: supply,
+  });
+}
+
+/** シートのデータをオブジェクト配列として読み取る */
+function readSheetData(ss, sheetName) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var result = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var row = {};
+    for (var j = 0; j < headers.length; j++) {
+      row[String(headers[j]).trim()] = data[i][j];
+    }
+    // 空行スキップ
+    if (row['品目'] && String(row['品目']).trim()) {
+      result.push(row);
+    }
+  }
+  return result;
 }
 
 // ============================================================
