@@ -3,6 +3,17 @@ export interface StoreSettings {
   openTime: string;
   closeTime: string;
   onboarded: boolean;
+  notifyEmail: string;  // 通知先メールアドレス
+}
+
+// ローカル在庫数量管理
+export interface StockEntry {
+  itemName: string;
+  quantity: number;
+  unit: string;
+  category: string;
+  itemType: InventoryItemType;
+  lastUpdated: string;
 }
 
 // 曜日タイプ別の目標設定テンプレート
@@ -278,4 +289,5 @@ export interface AppState {
   skillDefinitions: SkillDefinition[];
   skillMap: SkillMap;
   checkedHandovers: string[];  // チェック済み引き継ぎ項目のID（"logId-index"形式）
+  localStock: StockEntry[];    // ローカル在庫数量（スプレッドシート不要で管理）
 }

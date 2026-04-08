@@ -177,12 +177,36 @@ function VoiceLogView() {
   const handleSave = () => {
     if (!classified) return;
     const today = format(new Date(), 'yyyy-MM-dd');
-    setState((s) => ({
-      ...s,
-      voiceLogs: [{
-        id: generateId(), date: today, rawText, classified, createdAt: new Date().toISOString(),
-      }, ...(s.voiceLogs ?? [])],
-    }));
+    setState((s) => {
+      // ローカル在庫を更新
+      const newStock = [...(s.localStock ?? [])];
+      for (const p of classified.inventoryParsed) {
+        const masterItem = s.inventoryItems.find((i) => i.name === p.item);
+        const idx = newStock.findIndex((st) => st.itemName === p.item);
+        if (idx >= 0) {
+          const qty = p.action === 'consume'
+            ? Math.max(0, newStock[idx].quantity - p.quantity)
+            : newStock[idx].quantity + p.quantity;
+          newStock[idx] = { ...newStock[idx], quantity: qty, lastUpdated: today };
+        } else {
+          newStock.push({
+            itemName: p.item,
+            quantity: p.action === 'consume' ? 0 : p.quantity,
+            unit: p.unit,
+            category: masterItem?.category ?? '未分類',
+            itemType: masterItem?.itemType ?? 'food',
+            lastUpdated: today,
+          });
+        }
+      }
+      return {
+        ...s,
+        voiceLogs: [{
+          id: generateId(), date: today, rawText, classified, createdAt: new Date().toISOString(),
+        }, ...(s.voiceLogs ?? [])],
+        localStock: newStock,
+      };
+    });
     setSaved(true);
   };
 
@@ -204,6 +228,7 @@ function VoiceLogView() {
         body: JSON.stringify({
           action: 'voiceLog',
           date: today,
+          notifyEmail: state.settings.notifyEmail || '',
           urgent: classified.urgent,
           inventory: classified.inventory,
           inventoryParsed: classified.inventoryParsed.map((p) => {

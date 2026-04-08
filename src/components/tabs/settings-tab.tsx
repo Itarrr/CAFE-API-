@@ -60,11 +60,12 @@ export default function SettingsTab() {
 function StoreSection() {
   const { state, setState } = useAppState();
   const [name, setName] = useState(state.settings.storeName);
+  const [email, setEmail] = useState(state.settings.notifyEmail ?? '');
   const [open, setOpen] = useState(state.settings.openTime);
   const [close, setClose] = useState(state.settings.closeTime);
 
   const save = () => {
-    setState((s) => ({ ...s, settings: { ...s.settings, storeName: name, openTime: open, closeTime: close } }));
+    setState((s) => ({ ...s, settings: { ...s.settings, storeName: name, notifyEmail: email, openTime: open, closeTime: close } }));
   };
 
   return (
@@ -72,6 +73,11 @@ function StoreSection() {
       <CardHeader className="pb-3"><CardTitle className="text-base">店舗情報</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div><Label>店舗名</Label><Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" /></div>
+        <div>
+          <Label>通知メールアドレス</Label>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@example.com" className="mt-1" />
+          <p className="text-xs text-gray-400 mt-1">在庫切れ等の緊急通知が届きます</p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div><Label>開店</Label><Input type="time" value={open} onChange={(e) => setOpen(e.target.value)} className="mt-1" /></div>
           <div><Label>閉店</Label><Input type="time" value={close} onChange={(e) => setClose(e.target.value)} className="mt-1" /></div>

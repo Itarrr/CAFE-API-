@@ -15,6 +15,7 @@ export default function Onboarding() {
   const { setState } = useAppState();
   const [step, setStep] = useState(0);
   const [storeName, setStoreName] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState('');
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('22:00');
   const [employees, setEmployees] = useState<Omit<Employee, 'id'>[]>([]);
@@ -35,7 +36,7 @@ export default function Onboarding() {
   const finish = () => {
     setState((prev) => ({
       ...prev,
-      settings: { storeName, openTime, closeTime, onboarded: true },
+      settings: { storeName, openTime, closeTime, onboarded: true, notifyEmail },
       employees: employees.map((e) => ({ ...e, id: generateId() })),
       taskTemplates: [
         { id: generateId(), title: 'テーブル拭き・セッティング', category: '清掃', description: '全テーブルの拭き上げとセット直し', videoUrl: '', points: 10, repeatable: true, estimateMinutes: 5 },
@@ -67,6 +68,11 @@ export default function Onboarding() {
           <div>
             <Label>店舗名</Label>
             <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="例: CAFE TEBANASHI" className="mt-1" />
+          </div>
+          <div>
+            <Label>通知メールアドレス</Label>
+            <Input type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder="例: owner@example.com" className="mt-1" />
+            <p className="text-xs text-gray-400 mt-1">在庫切れなどの通知が届きます（後から変更可）</p>
           </div>
         </div>
       ),

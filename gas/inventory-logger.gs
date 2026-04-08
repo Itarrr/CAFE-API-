@@ -87,6 +87,7 @@ function handleVoiceLog(json) {
   var inventory       = json.inventory       || [];
   var handover        = json.handover        || [];
   var itemTypeMap     = json.itemTypeMap     || {};  // { "ナプキン": "supply", "牛乳": "food", ... }
+  var notifyEmail     = json.notifyEmail     || '';  // アプリから送られた通知先メール
 
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 
@@ -113,8 +114,10 @@ function handleVoiceLog(json) {
   appendRawLog(ss, date, time, urgent, inventory, handover);
 
   // ── 6. 緊急メール通知 ──
-  if (urgent.length > 0 && CONFIG.NOTIFY_EMAIL && CONFIG.NOTIFY_EMAIL.indexOf('@') > 0) {
-    sendUrgentEmail(date, urgent);
+  // メール通知: アプリから送られたメールを優先、なければCONFIG
+  var emailTo = (notifyEmail && notifyEmail.indexOf('@') > 0) ? notifyEmail : CONFIG.NOTIFY_EMAIL;
+  if (urgent.length > 0 && emailTo && emailTo.indexOf('@') > 0) {
+    sendUrgentEmail(date, urgent, emailTo);
   }
 
   return buildResponse(200, {
@@ -346,14 +349,14 @@ function appendShoppingList(ss, date, urgentItems) {
 // ============================================================
 // メール通知
 // ============================================================
-function sendUrgentEmail(date, urgentItems) {
+function sendUrgentEmail(date, urgentItems, emailTo) {
   var subject = '【緊急】在庫補充 (' + date + ')';
   var body = ['カフェ在庫管理システムからの緊急通知です。', '', '以下の在庫に緊急対応が必要です:', ''];
   for (var i = 0; i < urgentItems.length; i++) {
     body.push('  ' + (i + 1) + '. ' + urgentItems[i]);
   }
   body.push('', '---', 'スプレッドシートの各シートを確認してください。');
-  MailApp.sendEmail({ to: CONFIG.NOTIFY_EMAIL, subject: subject, body: body.join('\n') });
+  MailApp.sendEmail({ to: emailTo, subject: subject, body: body.join('\n') });
 }
 
 // ============================================================

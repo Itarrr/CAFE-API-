@@ -11,7 +11,7 @@ import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
 import type { Recipe, RecipeStep } from '@/lib/types';
 import {
-  ChefHat, Plus, Trash2, Clock, Search, X, Package, RefreshCw, AlertTriangle,
+  ChefHat, Plus, Trash2, Clock, Search, X, Package, AlertTriangle,
 } from 'lucide-react';
 
 type SubTab = 'recipes' | 'inventory';
@@ -288,63 +288,26 @@ function RecipeForm({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── 食材管理（スプレッドシートの在庫データ表示） ──────────────────
-type StockItem = {
-  '品目': string;
-  'カテゴリ': string;
-  '現在数': number;
-  '単位': string;
-  '最終更新': string;
-};
-
+// ─── 食材管理（ローカル在庫データ表示） ──────────────────
 function InventoryView() {
-  const [food, setFood] = useState<StockItem[]>([]);
-  const [supply, setSupply] = useState<StockItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const { state } = useAppState();
   const [tab, setTab] = useState<'food' | 'supply'>('food');
 
-  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzrc4vzBiZOkeWLD8nEZ-GLZNraYu6NZ6ZZjMhd4RlRi5E_QJP8-hxL6xjazzKY6BDI/exec';
-  const GAS_URL = typeof window !== 'undefined'
-    ? (localStorage.getItem('tebanashi-gas-url') ?? DEFAULT_GAS_URL)
-    : DEFAULT_GAS_URL;
+  const localStock = state.localStock ?? [];
+  const foodItems = localStock.filter((i) => (i.itemType ?? 'food') === 'food');
+  const supplyItems = localStock.filter((i) => i.itemType === 'supply');
 
-  const fetchStock = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${GAS_URL}?action=getStock`);
-      const data = await res.json();
-      if (data.status === 'ok') {
-        setFood(data.food || []);
-        setSupply(data.supply || []);
-        setLastFetched(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
-      } else {
-        setError('データの取得に失敗しました');
-      }
-    } catch {
-      setError('通信エラー。GAS URLを確認してください');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 初回読み込み
-  useState(() => { fetchStock(); });
-
-  const currentItems = tab === 'food' ? food : supply;
+  const currentItems = tab === 'food' ? foodItems : supplyItems;
 
   // カテゴリ別にグループ化
-  const grouped = currentItems.reduce<Record<string, StockItem[]>>((acc, item) => {
-    const cat = String(item['カテゴリ'] || '未分類');
+  const grouped = currentItems.reduce<Record<string, typeof localStock>>((acc, item) => {
+    const cat = item.category || '未分類';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(item);
     return acc;
   }, {});
 
-  // 在庫ゼロの数
-  const zeroCount = currentItems.filter((i) => Number(i['現在数']) <= 0).length;
+  const zeroCount = currentItems.filter((i) => i.quantity <= 0).length;
 
   return (
     <div className="space-y-4">
@@ -352,43 +315,25 @@ function InventoryView() {
       <div className="flex bg-gray-50 rounded-xl p-0.5">
         <button onClick={() => setTab('food')}
           className={`flex-1 text-xs py-2 rounded-lg transition-colors ${tab === 'food' ? 'bg-orange-500 text-white font-medium' : 'text-gray-400'}`}>
-          食材 ({food.length})
+          食材 ({foodItems.length})
         </button>
         <button onClick={() => setTab('supply')}
           className={`flex-1 text-xs py-2 rounded-lg transition-colors ${tab === 'supply' ? 'bg-blue-500 text-white font-medium' : 'text-gray-400'}`}>
-          備品 ({supply.length})
+          備品 ({supplyItems.length})
         </button>
       </div>
 
-      {/* 更新ボタン */}
+      {/* ステータス */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {lastFetched && <span className="text-[10px] text-gray-400">最終取得: {lastFetched}</span>}
+          <span className="text-[10px] text-gray-400">{currentItems.length}品目</span>
           {zeroCount > 0 && (
             <Badge className="bg-red-50 text-red-500 rounded-full text-[10px]">
               <AlertTriangle className="w-3 h-3 mr-0.5" />在庫切れ {zeroCount}件
             </Badge>
           )}
         </div>
-        <Button size="sm" variant="outline" onClick={fetchStock} className="h-7 text-xs gap-1 rounded-xl" disabled={loading}>
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />更新
-        </Button>
       </div>
-
-      {/* エラー */}
-      {error && (
-        <Card className="border border-red-200 bg-red-50 rounded-2xl">
-          <CardContent className="py-3 text-sm text-red-600 text-center">{error}</CardContent>
-        </Card>
-      )}
-
-      {/* ローディング */}
-      {loading && currentItems.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
-          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
-          <p className="text-sm">データを取得中...</p>
-        </div>
-      )}
 
       {/* 在庫一覧（カテゴリ別） */}
       {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([category, items]) => (
@@ -402,20 +347,20 @@ function InventoryView() {
           <CardContent className="pb-2">
             <div className="space-y-1">
               {items.map((item, i) => {
-                const qty = Number(item['現在数']);
-                const isZero = qty <= 0;
-                const isLow = qty > 0 && qty <= 3;
+                const isZero = item.quantity <= 0;
+                const isLow = item.quantity > 0 && item.quantity <= 3;
                 return (
                   <div key={i} className={`flex items-center justify-between py-1.5 px-2 rounded-xl ${isZero ? 'bg-red-50' : isLow ? 'bg-amber-50' : ''}`}>
                     <div className="flex items-center gap-2">
                       {isZero && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
-                      <span className={`text-sm ${isZero ? 'text-red-600 font-medium' : ''}`}>{item['品目']}</span>
+                      <span className={`text-sm ${isZero ? 'text-red-600 font-medium' : ''}`}>{item.itemName}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className={`text-sm font-bold ${isZero ? 'text-red-600' : isLow ? 'text-amber-600' : ''}`}>
-                        {qty}
+                        {item.quantity}
                       </span>
-                      <span className="text-[10px] text-gray-400">{item['単位']}</span>
+                      <span className="text-[10px] text-gray-400">{item.unit}</span>
+                      {item.lastUpdated && <span className="text-[9px] text-gray-300 ml-1">{item.lastUpdated}</span>}
                     </div>
                   </div>
                 );
@@ -426,11 +371,11 @@ function InventoryView() {
       ))}
 
       {/* データなし */}
-      {!loading && currentItems.length === 0 && !error && (
+      {currentItems.length === 0 && (
         <div className="text-center py-12 text-gray-400">
           <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p className="text-sm">在庫データがありません</p>
-          <p className="text-xs mt-1">音声ログから送信するとここに表示されます</p>
+          <p className="text-xs mt-1">音声ログで「ログを保存」すると在庫が自動更新されます</p>
         </div>
       )}
     </div>

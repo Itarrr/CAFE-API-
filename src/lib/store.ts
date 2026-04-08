@@ -10,7 +10,7 @@ function emptyDailySales(today: string): DailySalesData {
 }
 
 const defaultState: AppState = {
-  settings: { storeName: '', openTime: '09:00', closeTime: '22:00', onboarded: false },
+  settings: { storeName: '', openTime: '09:00', closeTime: '22:00', onboarded: false, notifyEmail: '' },
   employees: [],
   taskTemplates: [],
   taskCompletions: [],
@@ -61,6 +61,7 @@ const defaultState: AppState = {
   ],
   skillMap: {},
   checkedHandovers: [],
+  localStock: [],
 };
 
 export function loadState(): AppState {
@@ -69,11 +70,13 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
     const state: AppState = { ...defaultState, ...JSON.parse(raw) };
-    // マイグレーション: itemType がない既存アイテムにデフォルト値を設定
+    // マイグレーション
     state.inventoryItems = state.inventoryItems.map((item) => ({
       ...item,
       itemType: item.itemType ?? 'food',
     }));
+    state.settings = { ...state.settings, notifyEmail: state.settings.notifyEmail ?? '' };
+    state.localStock = state.localStock ?? [];
     const today = format(new Date(), 'yyyy-MM-dd');
     if (state.lastOpenedDate !== today) {
       return performDailyReset(state, today);
