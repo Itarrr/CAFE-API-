@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, ClipboardCheck, CalendarClock, BarChart3, Shield, ChefHat, Settings, Mic } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, CalendarClock, ShoppingCart, Shield, ChefHat, Settings, Mic } from 'lucide-react';
 
 const tabs = [
   { id: 'dashboard', label: '現場監督', icon: LayoutDashboard },
@@ -9,7 +9,7 @@ const tabs = [
   { id: 'recipes', label: 'レシピ', icon: ChefHat },
   { id: 'skillmatrix', label: '戦力表', icon: Shield },
   { id: 'voice', label: '音声ログ', icon: Mic },
-  { id: 'backyard', label: '評価', icon: BarChart3 },
+  { id: 'backyard', label: '買い出し', icon: ShoppingCart },
   { id: 'settings', label: '設定', icon: Settings },
 ] as const;
 

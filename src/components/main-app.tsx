@@ -29,7 +29,7 @@ export default function MainApp() {
     recipes: 'レシピ',
     skillmatrix: '戦力表',
     voice: '音声ログ',
-    backyard: '評価・バックヤード',
+    backyard: '買い出しリスト',
     settings: 'マスター設定',
   };
 

@@ -8,17 +8,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAppState } from '@/lib/context';
 import { format } from 'date-fns';
 import {
-  Star, MessageCircle,
-  Plus, Send, Mic,
+  MessageCircle, Send, Mic, ShoppingCart,
 } from 'lucide-react';
 
-type Section = 'evaluation' | 'board';
+type Section = 'shopping' | 'board';
 
 export default function BackyardTab() {
-  const [section, setSection] = useState<Section>('evaluation');
+  const [section, setSection] = useState<Section>('shopping');
 
   const sections: { id: Section; label: string; icon: React.ReactNode }[] = [
-    { id: 'evaluation', label: '評価', icon: <Star className="w-4 h-4" /> },
+    { id: 'shopping', label: '買い出しリスト', icon: <ShoppingCart className="w-4 h-4" /> },
     { id: 'board', label: '連絡ボード', icon: <MessageCircle className="w-4 h-4" /> },
   ];
 
@@ -38,102 +37,113 @@ export default function BackyardTab() {
         ))}
       </div>
 
-      {section === 'evaluation' && <EvaluationView />}
+      {section === 'shopping' && <ShoppingListView />}
       {section === 'board' && <BoardView />}
     </div>
   );
 }
 
-function EvaluationView() {
-  const { state } = useAppState();
-  const [selectedEmp, setSelectedEmp] = useState<string | null>(null);
+function ShoppingListView() {
+  const { state, setState } = useAppState();
+  const [newItem, setNewItem] = useState('');
+
+  // ローカル在庫から在庫切れ・残りわずかの品目を自動抽出
+  const localStock = state.localStock ?? [];
+  const masterItems = state.inventoryItems;
+  const allItems = masterItems.map((m) => {
+    const stock = localStock.find((s) => s.itemName === m.name);
+    return { name: m.name, quantity: stock?.quantity ?? 0, unit: m.unit, category: m.category, itemType: m.itemType };
+  });
+  const lowStockItems = allItems.filter((i) => i.quantity <= 3);
+
+  // 手動追加の買い出しリスト
+  const [manualItems, setManualItems] = useState<{ id: string; text: string; done: boolean }[]>([]);
+
+  const addItem = () => {
+    if (!newItem.trim()) return;
+    setManualItems([...manualItems, { id: `${Date.now()}`, text: newItem.trim(), done: false }]);
+    setNewItem('');
+  };
+
+  const toggleItem = (id: string) => {
+    setManualItems(manualItems.map((i) => i.id === id ? { ...i, done: !i.done } : i));
+  };
+
+  const removeItem = (id: string) => {
+    setManualItems(manualItems.filter((i) => i.id !== id));
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {state.employees
-        .map((emp) => {
-          const todayCompletions = state.taskCompletions.filter((c) => c.completedByEmployeeId === emp.id);
-          const todayPoints = todayCompletions.reduce((s, c) => s + (c.pointsEarned ?? 0), 0);
-          const todayCount = todayCompletions.length;
-          const archivedPoints = (state.pointsArchive ?? [])
-            .filter((p) => p.employeeId === emp.id)
-            .reduce((s, p) => s + p.totalPoints, 0);
-          const totalAllTimePoints = archivedPoints + todayPoints;
-          const timeRec = state.timeRecords.find(
-            (r) => r.employeeId === emp.id && r.date === format(new Date(), 'yyyy-MM-dd')
-          );
-          return { emp, todayPoints, todayCount, totalAllTimePoints, todayCompletions, timeRec };
-        })
-        .sort((a, b) => b.totalAllTimePoints - a.totalAllTimePoints)
-        .map(({ emp, todayPoints, todayCount, totalAllTimePoints, todayCompletions, timeRec }, rank) => (
-          <Card key={emp.id} className="cursor-pointer rounded-2xl border-0 shadow-sm" onClick={() => setSelectedEmp(selectedEmp === emp.id ? null : emp.id)}>
-            <CardContent className="py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                    rank === 0 ? 'bg-amber-400' : rank === 1 ? 'bg-gray-400' : rank === 2 ? 'bg-orange-300' : 'bg-gray-200 text-gray-500'
-                  }`}>
-                    {rank < 3 ? `${rank + 1}` : emp.name.slice(0, 1)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{emp.name}</span>
-                      <Badge variant="outline" className="text-[10px] rounded-full">
-                        {emp.role === 'manager' ? '社員' : emp.role === 'staff' ? 'スタッフ' : 'アルバイト'}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      本日: {todayCount}件 / +{todayPoints}pt
-                    </p>
-                  </div>
+    <div className="space-y-4">
+      {/* 在庫切れ・残りわずかの自動リスト */}
+      {lowStockItems.length > 0 && (
+        <Card className="border border-red-200 bg-red-50 rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5 text-red-600">
+              <ShoppingCart className="w-4 h-4" />在庫が少ない品目
+              <Badge className="bg-red-100 text-red-600 rounded-full ml-auto text-[10px]">{lowStockItems.length}件</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3 space-y-1">
+            {lowStockItems.map((item, i) => (
+              <div key={i} className={`flex items-center justify-between py-1.5 px-3 rounded-xl ${item.quantity <= 0 ? 'bg-white' : 'bg-red-50/50'}`}>
+                <div className="flex items-center gap-2">
+                  <Badge className={`text-[10px] rounded-full ${item.itemType === 'supply' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                    {item.itemType === 'supply' ? '備品' : '食材'}
+                  </Badge>
+                  <span className="text-sm font-medium">{item.name}</span>
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-amber-400" />
-                    <span className="font-bold">{totalAllTimePoints}<span className="text-xs text-gray-400">pt</span></span>
-                  </div>
-                  <p className="text-[10px] text-gray-400">累計</p>
-                </div>
+                <span className={`text-sm font-bold ${item.quantity <= 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                  {item.quantity}{item.unit}
+                </span>
               </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-              {selectedEmp === emp.id && (
-                <div className="mt-3 pt-3 border-t space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-center">
-                    <div className="bg-amber-50 rounded-xl p-2">
-                      <p className="text-lg font-bold text-amber-600">{todayPoints}</p>
-                      <p className="text-[10px] text-amber-500">今日のポイント</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-2">
-                      <p className="text-lg font-bold">{totalAllTimePoints}</p>
-                      <p className="text-[10px] text-gray-400">累計ポイント</p>
-                    </div>
-                  </div>
-                  {todayCompletions.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">今日の完了タスク</p>
-                      {todayCompletions.map((c, i) => {
-                        const task = state.taskTemplates.find((t) => t.id === c.taskId);
-                        return (
-                          <div key={i} className="flex items-center justify-between text-sm py-0.5">
-                            <span className="text-gray-600">{task?.title ?? '不明'}</span>
-                            <Badge className="bg-amber-50 text-amber-600 text-[10px] rounded-full">+{c.pointsEarned}pt</Badge>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {timeRec && (
-                    <div className="text-xs text-gray-400">
-                      出勤: {timeRec.clockIn ?? '-'} / 退勤: {timeRec.clockOut ?? '勤務中'}
-                    </div>
-                  )}
+      {lowStockItems.length === 0 && (
+        <Card className="border border-green-200 bg-green-50 rounded-2xl">
+          <CardContent className="py-4 text-center">
+            <p className="text-sm text-green-600 font-medium">在庫は十分です</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 手動追加 */}
+      <Card className="rounded-2xl border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">買い出しメモを追加</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addItem()}
+              placeholder="例: 牛乳 2本"
+              className="flex-1 border rounded-xl px-3 py-2 text-sm bg-white"
+            />
+            <Button onClick={addItem} className="bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl" disabled={!newItem.trim()}>追加</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 手動リスト */}
+      {manualItems.length > 0 && (
+        <div className="space-y-1.5">
+          {manualItems.map((item) => (
+            <div key={item.id} className={`flex items-center justify-between py-2 px-3 rounded-xl bg-white shadow-sm ${item.done ? 'opacity-50' : ''}`}>
+              <button onClick={() => toggleItem(item.id)} className="flex items-center gap-2 flex-1 text-left">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${item.done ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300'}`}>
+                  {item.done && '✓'}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      {state.employees.length === 0 && (
-        <div className="text-center py-8 text-gray-400 text-sm">従業員が登録されていません</div>
+                <span className={`text-sm ${item.done ? 'line-through text-gray-400' : ''}`}>{item.text}</span>
+              </button>
+              <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-400 text-xs ml-2">✕</button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -233,4 +243,3 @@ function BoardView() {
     </div>
   );
 }
-

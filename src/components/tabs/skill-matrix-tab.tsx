@@ -7,9 +7,36 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
-import { Plus, Trash2, Shield } from 'lucide-react';
+import { format } from 'date-fns';
+import { Plus, Trash2, Shield, Star, Trophy } from 'lucide-react';
+
+type SubTab = 'matrix' | 'evaluation';
 
 export default function SkillMatrixTab() {
+  const [subTab, setSubTab] = useState<SubTab>('matrix');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex bg-gray-50 rounded-xl p-1">
+        <button onClick={() => setSubTab('matrix')}
+          className={`flex-1 text-sm py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5 ${
+            subTab === 'matrix' ? 'bg-white shadow-sm font-medium text-[#ff6b6b]' : 'text-gray-400'
+          }`}>
+          <Shield className="w-4 h-4" />戦力表
+        </button>
+        <button onClick={() => setSubTab('evaluation')}
+          className={`flex-1 text-sm py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5 ${
+            subTab === 'evaluation' ? 'bg-white shadow-sm font-medium text-[#ff6b6b]' : 'text-gray-400'
+          }`}>
+          <Trophy className="w-4 h-4" />タスク評価
+        </button>
+      </div>
+      {subTab === 'matrix' ? <SkillMatrixView /> : <EvaluationView />}
+    </div>
+  );
+}
+
+function SkillMatrixView() {
   const { state, setState } = useAppState();
   const [newSkillName, setNewSkillName] = useState('');
   const [newSkillCategory, setNewSkillCategory] = useState('キッチン');
@@ -249,6 +276,103 @@ export default function SkillMatrixTab() {
             </Card>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── アイドルタイムタスク評価 ──────────────────────────────
+function EvaluationView() {
+  const { state } = useAppState();
+  const [selectedEmp, setSelectedEmp] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-gray-400 px-1">アイドルタイムタスク評価</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {state.employees
+          .map((emp) => {
+            const todayCompletions = state.taskCompletions.filter((c) => c.completedByEmployeeId === emp.id);
+            const todayPoints = todayCompletions.reduce((s, c) => s + (c.pointsEarned ?? 0), 0);
+            const todayCount = todayCompletions.length;
+            const archivedPoints = (state.pointsArchive ?? [])
+              .filter((p) => p.employeeId === emp.id)
+              .reduce((s, p) => s + p.totalPoints, 0);
+            const totalAllTimePoints = archivedPoints + todayPoints;
+            const timeRec = state.timeRecords.find(
+              (r) => r.employeeId === emp.id && r.date === format(new Date(), 'yyyy-MM-dd')
+            );
+            return { emp, todayPoints, todayCount, totalAllTimePoints, todayCompletions, timeRec };
+          })
+          .sort((a, b) => b.totalAllTimePoints - a.totalAllTimePoints)
+          .map(({ emp, todayPoints, todayCount, totalAllTimePoints, todayCompletions, timeRec }, rank) => (
+            <Card key={emp.id} className="cursor-pointer rounded-2xl border-0 shadow-sm" onClick={() => setSelectedEmp(selectedEmp === emp.id ? null : emp.id)}>
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                      rank === 0 ? 'bg-amber-400' : rank === 1 ? 'bg-gray-400' : rank === 2 ? 'bg-orange-300' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {rank < 3 ? `${rank + 1}` : emp.name.slice(0, 1)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{emp.name}</span>
+                        <Badge variant="outline" className="text-[10px] rounded-full">
+                          {emp.role === 'manager' ? '社員' : emp.role === 'staff' ? 'スタッフ' : 'アルバイト'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-400">本日: {todayCount}件 / +{todayPoints}pt</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 text-amber-400" />
+                      <span className="font-bold">{totalAllTimePoints}<span className="text-xs text-gray-400">pt</span></span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">累計</p>
+                  </div>
+                </div>
+
+                {selectedEmp === emp.id && (
+                  <div className="mt-3 pt-3 border-t space-y-3">
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="bg-amber-50 rounded-xl p-2">
+                        <p className="text-lg font-bold text-amber-600">{todayPoints}</p>
+                        <p className="text-[10px] text-amber-500">今日のポイント</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-2">
+                        <p className="text-lg font-bold">{totalAllTimePoints}</p>
+                        <p className="text-[10px] text-gray-400">累計ポイント</p>
+                      </div>
+                    </div>
+                    {todayCompletions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">今日の完了タスク</p>
+                        {todayCompletions.map((c, i) => {
+                          const task = state.taskTemplates.find((t) => t.id === c.taskId);
+                          return (
+                            <div key={i} className="flex items-center justify-between text-sm py-0.5">
+                              <span className="text-gray-600">{task?.title ?? '不明'}</span>
+                              <Badge className="bg-amber-50 text-amber-600 text-[10px] rounded-full">+{c.pointsEarned}pt</Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {timeRec && (
+                      <div className="text-xs text-gray-400">
+                        出勤: {timeRec.clockIn ?? '-'} / 退勤: {timeRec.clockOut ?? '勤務中'}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        {state.employees.length === 0 && (
+          <div className="text-center py-8 text-gray-400 text-sm">従業員が登録されていません</div>
+        )}
       </div>
     </div>
   );
