@@ -9,10 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
-import { format } from 'date-fns';
 import type { Recipe, RecipeStep } from '@/lib/types';
 import {
-  ChefHat, Plus, Trash2, Clock, Search, X, Package, ShoppingCart, ClipboardCheck,
+  ChefHat, Plus, Trash2, Clock, Search, X, Package,
 } from 'lucide-react';
 
 type SubTab = 'recipes' | 'inventory';
@@ -289,91 +288,12 @@ function RecipeForm({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── 食材管理（仕入れ・棚卸し） ──────────────────────────────
+// ─── 食材管理 ──────────────────────────────
 function InventoryView() {
-  const { state, setState } = useAppState();
-  const [itemId, setItemId] = useState('');
-  const [type, setType] = useState<'purchase' | 'stocktake'>('purchase');
-  const [qty, setQty] = useState('');
-  const [note, setNote] = useState('');
-
-  const submit = () => {
-    if (!itemId || !qty) return;
-    setState((s) => ({
-      ...s,
-      inventoryRecords: [
-        { itemId, date: format(new Date(), 'yyyy-MM-dd'), type, quantity: Number(qty), note },
-        ...s.inventoryRecords,
-      ],
-    }));
-    setQty(''); setNote('');
-  };
-
   return (
-    <div className="space-y-4">
-      <Card className="rounded-2xl border-0 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">仕入れ・棚卸し入力</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <select
-            value={itemId}
-            onChange={(e) => setItemId(e.target.value)}
-            className="w-full border rounded-xl px-3 py-2 text-sm bg-white"
-          >
-            <option value="">品目を選択...</option>
-            {state.inventoryItems.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}（{item.unit}）</option>
-            ))}
-          </select>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as 'purchase' | 'stocktake')}
-              className="border rounded-xl px-3 py-2 text-sm bg-white"
-            >
-              <option value="purchase">仕入れ</option>
-              <option value="stocktake">棚卸し</option>
-            </select>
-            <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="数量" className="rounded-xl" />
-          </div>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="備考（任意）" className="rounded-xl" />
-          <Button onClick={submit} className="w-full bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl" disabled={!itemId || !qty}>
-            <Plus className="w-4 h-4 mr-1" />記録する
-          </Button>
-        </CardContent>
-      </Card>
-
-      <h3 className="text-sm font-medium text-gray-400 px-1">直近の記録</h3>
-      {state.inventoryRecords.slice(0, 10).map((rec, i) => {
-        const item = state.inventoryItems.find((it) => it.id === rec.itemId);
-        return (
-          <Card key={i} className="rounded-2xl border-0 shadow-sm">
-            <CardContent className="py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {rec.type === 'purchase' ? (
-                  <ShoppingCart className="w-4 h-4 text-blue-500" />
-                ) : (
-                  <ClipboardCheck className="w-4 h-4 text-green-500" />
-                )}
-                <div>
-                  <span className="text-sm font-medium">{item?.name ?? '不明'}</span>
-                  <Badge variant="outline" className="ml-2 text-[10px] rounded-full">
-                    {rec.type === 'purchase' ? '仕入れ' : '棚卸し'}
-                  </Badge>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="font-medium text-sm">{rec.quantity}{item?.unit}</span>
-                {rec.note && <p className="text-[10px] text-gray-400">{rec.note}</p>}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-      {state.inventoryRecords.length === 0 && (
-        <div className="text-center py-8 text-gray-400 text-sm">記録がありません</div>
-      )}
+    <div className="text-center py-12 text-gray-400">
+      <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
+      <p className="text-sm">食材管理</p>
     </div>
   );
 }
