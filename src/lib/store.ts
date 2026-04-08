@@ -69,6 +69,11 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
     const state: AppState = { ...defaultState, ...JSON.parse(raw) };
+    // マイグレーション: itemType がない既存アイテムにデフォルト値を設定
+    state.inventoryItems = state.inventoryItems.map((item) => ({
+      ...item,
+      itemType: item.itemType ?? 'food',
+    }));
     const today = format(new Date(), 'yyyy-MM-dd');
     if (state.lastOpenedDate !== today) {
       return performDailyReset(state, today);

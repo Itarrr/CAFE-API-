@@ -126,11 +126,14 @@ export interface TimeRecordV2 {
   method: TimeRecordMethod;
 }
 
+export type InventoryItemType = 'food' | 'supply';
+
 export interface InventoryItem {
   id: string;
   name: string;
   unit: string;
   category: string;
+  itemType: InventoryItemType; // 食材 or 備品
   costPerUnit: number;
 }
 

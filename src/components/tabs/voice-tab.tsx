@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
 import { format } from 'date-fns';
-import type { VoiceLogClassified, ParsedInventoryItem } from '@/lib/types';
+import type { VoiceLogClassified, ParsedInventoryItem, InventoryItemType } from '@/lib/types';
 import {
   Mic, AlertTriangle, Archive, FileText, Plus, Send, Package, X, Upload,
 } from 'lucide-react';
@@ -372,13 +372,16 @@ function MasterRegistrationView() {
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newUnit, setNewUnit] = useState('個');
+  const [newItemType, setNewItemType] = useState<InventoryItemType>('food');
+  const [bulkItemType, setBulkItemType] = useState<InventoryItemType>('food');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<'success' | 'error' | null>(null);
 
-  // カテゴリ一覧を取得
   const categories = [...new Set(state.inventoryItems.map((i) => i.category).filter(Boolean))];
 
-  // 単品追加
+  const foodItems = state.inventoryItems.filter((i) => (i.itemType ?? 'food') === 'food');
+  const supplyItems = state.inventoryItems.filter((i) => i.itemType === 'supply');
+
   const addSingle = () => {
     if (!newName.trim()) return;
     const exists = state.inventoryItems.some((i) => i.name === newName.trim());
@@ -386,13 +389,12 @@ function MasterRegistrationView() {
     setState((s) => ({
       ...s,
       inventoryItems: [...s.inventoryItems, {
-        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, costPerUnit: 0,
+        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, itemType: newItemType, costPerUnit: 0,
       }],
     }));
     setNewName(''); setNewCategory(''); setNewUnit('個');
   };
 
-  // 一括登録（タブ区切り or 改行区切り）
   const registerBulk = () => {
     const lines = bulkText.split('\n').map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
@@ -414,7 +416,7 @@ function MasterRegistrationView() {
         continue;
       }
       pendingNames.add(name);
-      toAdd.push({ id: generateId(), name, category, unit, costPerUnit: 0 });
+      toAdd.push({ id: generateId(), name, category, unit, itemType: bulkItemType, costPerUnit: 0 });
     }
 
     if (toAdd.length > 0) {
@@ -423,12 +425,10 @@ function MasterRegistrationView() {
     setBulkResult({ added: toAdd.length, skipped });
   };
 
-  // 削除
   const removeItem = (id: string) => {
     setState((s) => ({ ...s, inventoryItems: s.inventoryItems.filter((i) => i.id !== id) }));
   };
 
-  // スプレッドシートにマスタ送信
   const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzrc4vzBiZOkeWLD8nEZ-GLZNraYu6NZ6ZZjMhd4RlRi5E_QJP8-hxL6xjazzKY6BDI/exec';
   const GAS_URL = typeof window !== 'undefined'
     ? (localStorage.getItem('tebanashi-gas-url') ?? DEFAULT_GAS_URL)
@@ -444,7 +444,7 @@ function MasterRegistrationView() {
         body: JSON.stringify({
           action: 'syncMaster',
           items: state.inventoryItems.map((i) => ({
-            name: i.name, category: i.category, unit: i.unit,
+            name: i.name, category: i.category, unit: i.unit, itemType: i.itemType ?? 'food',
           })),
         }),
       });
@@ -456,13 +456,58 @@ function MasterRegistrationView() {
     }
   };
 
-  // カテゴリごとにグループ化
-  const grouped = state.inventoryItems.reduce<Record<string, typeof state.inventoryItems>>((acc, item) => {
-    const cat = item.category || '未分類';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {});
+  const typeLabel = (t: InventoryItemType) => t === 'food' ? '食材' : '備品';
+
+  const renderItemGroup = (title: string, items: typeof state.inventoryItems, color: string) => {
+    const grouped = items.reduce<Record<string, typeof state.inventoryItems>>((acc, item) => {
+      const cat = item.category || '未分類';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(item);
+      return acc;
+    }, {});
+
+    return (
+      <div className="space-y-2">
+        <h3 className={`text-sm font-bold px-1 ${color}`}>{title} ({items.length}件)</h3>
+        {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([category, catItems]) => (
+          <Card key={category} className="rounded-2xl border-0 shadow-sm">
+            <CardHeader className="pb-1 pt-3">
+              <CardTitle className="text-xs text-gray-400 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" />{category}
+                <Badge className="bg-gray-100 text-gray-500 rounded-full ml-auto text-[10px]">{catItems.length}件</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-2">
+              <div className="flex flex-wrap gap-1.5">
+                {catItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-1 bg-gray-50 rounded-full pl-3 pr-1 py-1 text-sm">
+                    <span>{item.name}</span>
+                    <span className="text-[10px] text-gray-400">({item.unit})</span>
+                    <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-400 p-0.5">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  const ItemTypeToggle = ({ value, onChange }: { value: InventoryItemType; onChange: (v: InventoryItemType) => void }) => (
+    <div className="flex bg-gray-50 rounded-xl p-0.5">
+      <button onClick={() => onChange('food')}
+        className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${value === 'food' ? 'bg-orange-500 text-white font-medium' : 'text-gray-400'}`}>
+        食材
+      </button>
+      <button onClick={() => onChange('supply')}
+        className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${value === 'supply' ? 'bg-blue-500 text-white font-medium' : 'text-gray-400'}`}>
+        備品
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -472,6 +517,7 @@ function MasterRegistrationView() {
           <CardTitle className="text-sm">商品を追加</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <ItemTypeToggle value={newItemType} onChange={setNewItemType} />
           <div className="flex gap-2">
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="商品名" className="flex-1 rounded-xl" />
             <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="カテゴリ" className="w-28 rounded-xl" list="cat-list" />
@@ -479,7 +525,7 @@ function MasterRegistrationView() {
               {categories.map((c) => <option key={c} value={c} />)}
             </datalist>
             <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className="border rounded-xl px-2 text-sm bg-white w-16">
-              {['個', '本', '袋', '缶', 'パック', 'kg', 'g', 'L', '瓶', '箱', '枚'].map((u) => (
+              {['個', '本', '袋', '缶', 'パック', 'kg', 'g', 'L', '瓶', '箱', '枚', 'ロール', 'セット'].map((u) => (
                 <option key={u} value={u}>{u}</option>
               ))}
             </select>
@@ -498,16 +544,19 @@ function MasterRegistrationView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <ItemTypeToggle value={bulkItemType} onChange={setBulkItemType} />
           <p className="text-xs text-gray-400">タブ区切りで貼り付け: 商品名 / カテゴリ / 単位（1行1商品）</p>
           <Textarea
             value={bulkText}
             onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
             rows={6}
-            placeholder={'牛乳\t乳製品\t本\nトマト\t野菜\t個\nコーヒー豆\t飲料\tkg'}
+            placeholder={bulkItemType === 'food'
+              ? '牛乳\t乳製品\t本\nトマト\t野菜\t個\nコーヒー豆\t飲料\tkg'
+              : 'ナプキン\t消耗品\t袋\nテイクアウトカップ\t消耗品\t袋\nゴミ袋\t消耗品\tロール'}
             className="text-sm rounded-xl font-mono"
           />
           <Button onClick={registerBulk} className="w-full bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl" disabled={!bulkText.trim()}>
-            <Plus className="w-4 h-4 mr-1" />一括登録
+            <Plus className="w-4 h-4 mr-1" />{typeLabel(bulkItemType)}を一括登録
           </Button>
           {bulkResult && (
             <p className="text-sm text-center text-gray-500">
@@ -525,32 +574,10 @@ function MasterRegistrationView() {
       {sendResult === 'success' && <p className="text-sm text-green-500 text-center">商品マスタを同期しました</p>}
       {sendResult === 'error' && <p className="text-sm text-red-500 text-center">同期に失敗しました</p>}
 
-      {/* 登録済み商品一覧（カテゴリ別） */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400 px-1">登録済み商品 ({state.inventoryItems.length}件)</h3>
-        {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([category, items]) => (
-          <Card key={category} className="rounded-2xl border-0 shadow-sm">
-            <CardHeader className="pb-1 pt-3">
-              <CardTitle className="text-xs text-gray-400 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5" />{category}
-                <Badge className="bg-gray-100 text-gray-500 rounded-full ml-auto text-[10px]">{items.length}件</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pb-2">
-              <div className="flex flex-wrap gap-1.5">
-                {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-1 bg-gray-50 rounded-full pl-3 pr-1 py-1 text-sm">
-                    <span>{item.name}</span>
-                    <span className="text-[10px] text-gray-400">({item.unit})</span>
-                    <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-400 p-0.5">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* 登録済み商品一覧（食材/備品別） */}
+      <div className="space-y-4">
+        {foodItems.length > 0 && renderItemGroup('食材', foodItems, 'text-orange-500')}
+        {supplyItems.length > 0 && renderItemGroup('備品', supplyItems, 'text-blue-500')}
         {state.inventoryItems.length === 0 && (
           <div className="text-center py-8 text-gray-400 text-sm">商品が登録されていません</div>
         )}

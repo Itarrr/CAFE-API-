@@ -8,9 +8,11 @@ var CONFIG = {
 };
 
 // ── シート名 ──
-var SHEET_MASTER    = '商品マスタ';
-var SHEET_STOCK     = '在庫管理表';
-var SHEET_LOG       = '在庫ログ';
+var SHEET_MASTER_FOOD   = '商品マスタ（食材）';
+var SHEET_MASTER_SUPPLY = '商品マスタ（備品）';
+var SHEET_STOCK_FOOD    = '在庫管理表（食材）';
+var SHEET_STOCK_SUPPLY  = '在庫管理表（備品）';
+var SHEET_LOG           = '在庫ログ';
 var SHEET_URGENT    = '緊急アラート';
 var SHEET_HANDOVER  = '引き継ぎ事項';
 var SHEET_SHOPPING  = '買い出しリスト';
@@ -40,37 +42,42 @@ function doPost(e) {
 function handleSyncMaster(json) {
   var items = json.items || [];
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  var sheet = getOrCreateSheet(ss, SHEET_MASTER, ['商品名', 'カテゴリ', '単位', '登録日']);
 
-  // 既存データを取得
-  var lastRow = sheet.getLastRow();
+  var foodSheet = getOrCreateSheet(ss, SHEET_MASTER_FOOD, ['商品名', 'カテゴリ', '単位', '登録日']);
+  var supplySheet = getOrCreateSheet(ss, SHEET_MASTER_SUPPLY, ['商品名', 'カテゴリ', '単位', '登録日']);
+
+  // 既存データを取得（両シートから）
   var existingNames = {};
-  if (lastRow >= 2) {
-    var data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (var i = 0; i < data.length; i++) {
-      existingNames[String(data[i][0]).trim()] = true;
+  var sheets = [foodSheet, supplySheet];
+  for (var s = 0; s < sheets.length; s++) {
+    var lastRow = sheets[s].getLastRow();
+    if (lastRow >= 2) {
+      var data = sheets[s].getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < data.length; i++) {
+        existingNames[String(data[i][0]).trim()] = true;
+      }
     }
   }
 
-  // 新しいアイテムのみ追加
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var added = 0;
   for (var j = 0; j < items.length; j++) {
     var name = String(items[j].name).trim();
     if (!name || existingNames[name]) continue;
-    sheet.appendRow([name, items[j].category || '未分類', items[j].unit || '個', today]);
+    var targetSheet = (items[j].itemType === 'supply') ? supplySheet : foodSheet;
+    targetSheet.appendRow([name, items[j].category || '未分類', items[j].unit || '個', today]);
     existingNames[name] = true;
     added++;
   }
 
-  // カテゴリ別にソート（ヘッダーを除く）
-  var totalRows = sheet.getLastRow();
-  if (totalRows >= 3) {
-    sheet.getRange(2, 1, totalRows - 1, 4).sort([{column: 2, ascending: true}, {column: 1, ascending: true}]);
+  // 各シートをカテゴリ別にソート
+  for (var k = 0; k < sheets.length; k++) {
+    var totalRows = sheets[k].getLastRow();
+    if (totalRows >= 3) {
+      sheets[k].getRange(2, 1, totalRows - 1, 4).sort([{column: 2, ascending: true}, {column: 1, ascending: true}]);
+    }
+    colorByCategory(sheets[k]);
   }
-
-  // カテゴリごとに背景色を交互に変更
-  colorByCategory(sheet);
 
   return buildResponse(200, { status: 'ok', added: added, total: Object.keys(existingNames).length });
 }
@@ -130,7 +137,7 @@ function doGet() {
   return buildResponse(200, {
     status: 'ok',
     message: 'カフェ在庫管理 GAS v2 が稼働中です',
-    sheets: [SHEET_MASTER, SHEET_STOCK, SHEET_LOG, SHEET_URGENT, SHEET_HANDOVER, SHEET_SHOPPING, SHEET_RAW_LOG],
+    sheets: [SHEET_MASTER_FOOD, SHEET_MASTER_SUPPLY, SHEET_STOCK_FOOD, SHEET_STOCK_SUPPLY, SHEET_LOG, SHEET_URGENT, SHEET_HANDOVER, SHEET_SHOPPING, SHEET_RAW_LOG],
   });
 }
 
@@ -138,29 +145,45 @@ function doGet() {
 // 在庫管理表を更新
 // ============================================================
 function updateStockTable(ss, date, parsedItems) {
-  var sheet = getOrCreateSheet(ss, SHEET_STOCK, ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
+  var foodSheet = getOrCreateSheet(ss, SHEET_STOCK_FOOD, ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
+  var supplySheet = getOrCreateSheet(ss, SHEET_STOCK_SUPPLY, ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
 
-  // 商品マスタからカテゴリを引く
-  var masterSheet = ss.getSheetByName(SHEET_MASTER);
-  var masterMap = {};
-  if (masterSheet && masterSheet.getLastRow() >= 2) {
-    var mData = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 3).getValues();
-    for (var m = 0; m < mData.length; m++) {
-      masterMap[String(mData[m][0]).trim()] = {
-        category: String(mData[m][1]) || '未分類',
-        unit: String(mData[m][2]) || '個',
-      };
+  // 両マスタシートから品目→タイプのマップを構築
+  var masterMap = {}; // { name: { category, unit, itemType } }
+  var masterSheets = [
+    { sheet: ss.getSheetByName(SHEET_MASTER_FOOD), type: 'food' },
+    { sheet: ss.getSheetByName(SHEET_MASTER_SUPPLY), type: 'supply' },
+  ];
+  for (var ms = 0; ms < masterSheets.length; ms++) {
+    var mSheet = masterSheets[ms].sheet;
+    if (mSheet && mSheet.getLastRow() >= 2) {
+      var mData = mSheet.getRange(2, 1, mSheet.getLastRow() - 1, 3).getValues();
+      for (var m = 0; m < mData.length; m++) {
+        masterMap[String(mData[m][0]).trim()] = {
+          category: String(mData[m][1]) || '未分類',
+          unit: String(mData[m][2]) || '個',
+          itemType: masterSheets[ms].type,
+        };
+      }
     }
   }
 
-  var lastRow = sheet.getLastRow();
-  var itemMap = {};
-  if (lastRow >= 2) {
-    var data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
-    for (var i = 0; i < data.length; i++) {
-      var name = String(data[i][0]).trim();
-      if (name) {
-        itemMap[name] = { row: i + 2, qty: Number(data[i][2]) || 0, unit: String(data[i][3]) || '個' };
+  // 各在庫シートの既存データを読み込む
+  var stockSheets = [
+    { sheet: foodSheet, type: 'food' },
+    { sheet: supplySheet, type: 'supply' },
+  ];
+  var itemMap = {}; // { name: { sheet, row, qty, unit, type } }
+  for (var si = 0; si < stockSheets.length; si++) {
+    var sSheet = stockSheets[si].sheet;
+    var lastRow = sSheet.getLastRow();
+    if (lastRow >= 2) {
+      var data = sSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      for (var i = 0; i < data.length; i++) {
+        var name = String(data[i][0]).trim();
+        if (name) {
+          itemMap[name] = { sheet: sSheet, row: i + 2, qty: Number(data[i][2]) || 0, unit: String(data[i][3]) || '個', type: stockSheets[si].type };
+        }
       }
     }
   }
@@ -171,30 +194,34 @@ function updateStockTable(ss, date, parsedItems) {
     var quantity = Number(p.quantity) || 0;
     var unit     = String(p.unit) || '個';
     var action   = String(p.action);
-    var cat = (masterMap[itemName] && masterMap[itemName].category) || '未分類';
+    var master = masterMap[itemName];
+    var cat = (master && master.category) || '未分類';
+    var type = (master && master.itemType) || 'food';
+    var targetSheet = (type === 'supply') ? supplySheet : foodSheet;
 
     if (itemMap[itemName]) {
       var existing = itemMap[itemName];
       var newQty = (action === 'consume') ? Math.max(0, existing.qty - quantity) : existing.qty + quantity;
-      sheet.getRange(existing.row, 3).setValue(newQty);
-      sheet.getRange(existing.row, 5).setValue(date);
-      itemMap[itemName].qty = newQty;
+      existing.sheet.getRange(existing.row, 3).setValue(newQty);
+      existing.sheet.getRange(existing.row, 5).setValue(date);
     } else {
       var initialQty = (action === 'consume') ? 0 : quantity;
-      sheet.appendRow([itemName, cat, initialQty, unit, date]);
-      itemMap[itemName] = { row: sheet.getLastRow(), qty: initialQty, unit: unit };
+      targetSheet.appendRow([itemName, cat, initialQty, unit, date]);
     }
   }
 
-  // 在庫ゼロを赤背景
-  var totalRows = sheet.getLastRow();
-  if (totalRows >= 2) {
-    for (var r = 2; r <= totalRows; r++) {
-      var val = sheet.getRange(r, 3).getValue();
-      if (Number(val) <= 0) {
-        sheet.getRange(r, 1, 1, 5).setBackground('#fce4ec');
-      } else {
-        sheet.getRange(r, 1, 1, 5).setBackground(null);
+  // 在庫ゼロを赤背景（両シート）
+  for (var z = 0; z < stockSheets.length; z++) {
+    var zSheet = stockSheets[z].sheet;
+    var totalRows = zSheet.getLastRow();
+    if (totalRows >= 2) {
+      for (var r = 2; r <= totalRows; r++) {
+        var val = zSheet.getRange(r, 3).getValue();
+        if (Number(val) <= 0) {
+          zSheet.getRange(r, 1, 1, 5).setBackground('#fce4ec');
+        } else {
+          zSheet.getRange(r, 1, 1, 5).setBackground(null);
+        }
       }
     }
   }
@@ -331,12 +358,14 @@ function buildResponse(code, payload) {
 // ============================================================
 function setup() {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  getOrCreateSheet(ss, SHEET_MASTER,    ['商品名', 'カテゴリ', '単位', '登録日']);
-  getOrCreateSheet(ss, SHEET_STOCK,     ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
-  getOrCreateSheet(ss, SHEET_LOG,       ['日付', '時刻', '品目', '数量', '単位', '操作', '元テキスト']);
-  getOrCreateSheet(ss, SHEET_URGENT,    ['日付', '時刻', '内容', '対応状況']);
-  getOrCreateSheet(ss, SHEET_HANDOVER,  ['日付', '時刻', '内容', '確認済み']);
-  getOrCreateSheet(ss, SHEET_SHOPPING,  ['日付', '品目', '対応状況']);
-  getOrCreateSheet(ss, SHEET_RAW_LOG,   ['日付', '時刻', '緊急件数', '在庫件数', '引き継ぎ件数', 'サマリー']);
-  Logger.log('セットアップ完了: 7シートを作成しました');
+  getOrCreateSheet(ss, SHEET_MASTER_FOOD,   ['商品名', 'カテゴリ', '単位', '登録日']);
+  getOrCreateSheet(ss, SHEET_MASTER_SUPPLY, ['商品名', 'カテゴリ', '単位', '登録日']);
+  getOrCreateSheet(ss, SHEET_STOCK_FOOD,    ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
+  getOrCreateSheet(ss, SHEET_STOCK_SUPPLY,  ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
+  getOrCreateSheet(ss, SHEET_LOG,           ['日付', '時刻', '品目', '数量', '単位', '操作', '元テキスト']);
+  getOrCreateSheet(ss, SHEET_URGENT,        ['日付', '時刻', '内容', '対応状況']);
+  getOrCreateSheet(ss, SHEET_HANDOVER,      ['日付', '時刻', '内容', '確認済み']);
+  getOrCreateSheet(ss, SHEET_SHOPPING,      ['日付', '品目', '対応状況']);
+  getOrCreateSheet(ss, SHEET_RAW_LOG,       ['日付', '時刻', '緊急件数', '在庫件数', '引き継ぎ件数', 'サマリー']);
+  Logger.log('セットアップ完了: 9シートを作成しました');
 }
