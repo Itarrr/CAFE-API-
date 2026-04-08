@@ -1,43 +1,35 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
-import type { Employee } from '@/lib/types';
-import { Store, Clock, Users, Plus, X, ChevronRight, Coffee } from 'lucide-react';
+import { Coffee, Mail, User } from 'lucide-react';
 
 export default function Onboarding() {
   const { setState } = useAppState();
-  const [step, setStep] = useState(0);
-  const [storeName, setStoreName] = useState('');
-  const [notifyEmail, setNotifyEmail] = useState('');
-  const [openTime, setOpenTime] = useState('09:00');
-  const [closeTime, setCloseTime] = useState('22:00');
-  const [employees, setEmployees] = useState<Omit<Employee, 'id'>[]>([]);
-  const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState<Employee['role']>('staff');
-  const [newWage, setNewWage] = useState('1100');
+  const [userName, setUserName] = useState('');
+  const [email, setEmail] = useState('');
 
-  const addEmployee = () => {
-    if (!newName.trim()) return;
-    setEmployees([
-      ...employees,
-      { name: newName, role: newRole, hourlyWage: Number(newWage), joinedDate: new Date().toISOString().split('T')[0] },
-    ]);
-    setNewName('');
-    setNewWage('1100');
-  };
+  const canStart = userName.trim().length > 0 && email.includes('@');
 
-  const finish = () => {
+  const start = () => {
+    if (!canStart) return;
     setState((prev) => ({
       ...prev,
-      settings: { storeName, openTime, closeTime, onboarded: true, notifyEmail },
-      employees: employees.map((e) => ({ ...e, id: generateId() })),
+      settings: {
+        storeName: `${userName}のカフェ`,
+        openTime: '09:00',
+        closeTime: '22:00',
+        onboarded: true,
+        notifyEmail: email,
+      },
+      employees: [
+        { id: generateId(), name: userName, role: 'manager', hourlyWage: 1200, joinedDate: new Date().toISOString().split('T')[0] },
+      ],
       taskTemplates: [
         { id: generateId(), title: 'テーブル拭き・セッティング', category: '清掃', description: '全テーブルの拭き上げとセット直し', videoUrl: '', points: 10, repeatable: true, estimateMinutes: 5 },
         { id: generateId(), title: 'フロア清掃（モップがけ）', category: '清掃', description: 'フロア全体のモップがけ・掃き掃除', videoUrl: '', points: 15, repeatable: true, estimateMinutes: 10 },
@@ -59,124 +51,60 @@ export default function Onboarding() {
     }));
   };
 
-  const steps = [
-    {
-      icon: <Store className="w-7 h-7" />,
-      title: '店舗情報',
-      content: (
-        <div className="space-y-4">
-          <div>
-            <Label>店舗名</Label>
-            <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="例: CAFE TEBANASHI" className="mt-1" />
-          </div>
-          <div>
-            <Label>通知メールアドレス</Label>
-            <Input type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder="例: owner@example.com" className="mt-1" />
-            <p className="text-xs text-gray-400 mt-1">在庫切れなどの通知が届きます（後から変更可）</p>
-          </div>
-        </div>
-      ),
-      valid: storeName.trim().length > 0,
-    },
-    {
-      icon: <Clock className="w-7 h-7" />,
-      title: '営業時間',
-      content: (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>開店時間</Label>
-            <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label>閉店時間</Label>
-            <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="mt-1" />
-          </div>
-        </div>
-      ),
-      valid: true,
-    },
-    {
-      icon: <Users className="w-7 h-7" />,
-      title: '従業員登録',
-      content: (
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="名前" className="flex-1" />
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value as Employee['role'])} className="border rounded-xl px-2 text-sm bg-white">
-              <option value="manager">社員</option>
-              <option value="staff">スタッフ</option>
-              <option value="part-time">アルバイト</option>
-            </select>
-            <Input type="number" value={newWage} onChange={(e) => setNewWage(e.target.value)} className="w-24" placeholder="時給" />
-            <Button size="icon" variant="outline" onClick={addEmployee}><Plus className="w-4 h-4" /></Button>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {employees.map((e, i) => (
-              <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl p-2.5 px-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{e.name}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {e.role === 'manager' ? '社員' : e.role === 'staff' ? 'スタッフ' : 'アルバイト'}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">&yen;{e.hourlyWage}/h</span>
-                  <button onClick={() => setEmployees(employees.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {employees.length === 0 && <p className="text-sm text-gray-400 text-center py-4">従業員を追加してください</p>}
-        </div>
-      ),
-      valid: employees.length > 0,
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg shadow-lg border-0 rounded-3xl">
-        <CardHeader className="text-center pb-2">
-          <div className="flex justify-center mb-3">
-            <div className="w-16 h-16 bg-[#ff6b6b] rounded-3xl flex items-center justify-center">
+      <Card className="w-full max-w-sm shadow-lg border-0 rounded-3xl">
+        <CardContent className="pt-8 pb-6 px-6">
+          {/* ロゴ */}
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-[#ff6b6b] rounded-3xl flex items-center justify-center mx-auto mb-3">
               <Coffee className="w-8 h-8 text-white" />
             </div>
+            <CardTitle className="text-xl">手離し経営</CardTitle>
+            <p className="text-sm text-gray-400 mt-1">カフェ現場管理アプリ</p>
           </div>
-          <CardTitle className="text-xl">手離し経営セットアップ</CardTitle>
-          <p className="text-sm text-gray-400 mt-1">初期設定を完了して、現場の自走を始めましょう</p>
-          <div className="flex gap-1.5 justify-center mt-4">
-            {steps.map((_, i) => (
-              <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-8 bg-[#ff6b6b]' : i < step ? 'w-4 bg-[#ffb3b3]' : 'w-4 bg-gray-200'}`} />
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-[#fff0f0] flex items-center justify-center text-[#ff6b6b]">
-              {steps[step].icon}
+
+          {/* 入力フォーム */}
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-gray-500 flex items-center gap-1">
+                <User className="w-3.5 h-3.5" />あなたの名前
+              </Label>
+              <Input
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="例: 田中太郎"
+                className="mt-1 rounded-xl"
+                autoFocus
+              />
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider">Step {step + 1} / {steps.length}</p>
-              <h3 className="font-bold text-lg">{steps[step].title}</h3>
+              <Label className="text-xs text-gray-500 flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5" />メールアドレス
+              </Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="例: tanaka@example.com"
+                className="mt-1 rounded-xl"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">在庫切れなどの通知が届きます</p>
             </div>
           </div>
-          {steps[step].content}
-          <div className="flex gap-3 mt-8">
-            {step > 0 && (
-              <Button variant="outline" onClick={() => setStep(step - 1)} className="flex-1 rounded-xl">戻る</Button>
-            )}
-            {step < steps.length - 1 ? (
-              <Button onClick={() => setStep(step + 1)} disabled={!steps[step].valid} className="flex-1 bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl">
-                次へ <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            ) : (
-              <Button onClick={finish} disabled={!steps[step].valid} className="flex-1 bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl">
-                セットアップ完了
-              </Button>
-            )}
-          </div>
+
+          {/* 開始ボタン */}
+          <Button
+            onClick={start}
+            disabled={!canStart}
+            className="w-full h-12 mt-6 bg-[#ff6b6b] hover:bg-[#e05555] rounded-2xl text-base font-bold"
+          >
+            はじめる
+          </Button>
+
+          <p className="text-[10px] text-gray-300 text-center mt-4">
+            店舗名・営業時間・従業員は設定タブからいつでも変更できます
+          </p>
         </CardContent>
       </Card>
     </div>
