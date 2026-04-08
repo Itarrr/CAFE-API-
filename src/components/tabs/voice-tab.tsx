@@ -206,7 +206,10 @@ function VoiceLogView() {
           date: today,
           urgent: classified.urgent,
           inventory: classified.inventory,
-          inventoryParsed: classified.inventoryParsed,
+          inventoryParsed: classified.inventoryParsed.map((p) => {
+            const masterItem = state.inventoryItems.find((i) => i.name === p.item);
+            return { ...p, itemType: masterItem?.itemType ?? 'food' };
+          }),
           handover: classified.handover,
         }),
       });

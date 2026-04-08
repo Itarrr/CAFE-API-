@@ -196,7 +196,8 @@ function updateStockTable(ss, date, parsedItems) {
     var action   = String(p.action);
     var master = masterMap[itemName];
     var cat = (master && master.category) || '未分類';
-    var type = (master && master.itemType) || 'food';
+    // POSTデータにitemTypeがあればそれを優先、なければマスタから、最終的にfood
+    var type = String(p.itemType || (master && master.itemType) || 'food');
     var targetSheet = (type === 'supply') ? supplySheet : foodSheet;
 
     if (itemMap[itemName]) {
