@@ -3,7 +3,8 @@ export interface StoreSettings {
   openTime: string;
   closeTime: string;
   onboarded: boolean;
-  notifyEmail: string;  // 通知先メールアドレス
+  notifyEmail: string;     // 通知先メールアドレス
+  gasUrl: string;          // Google Apps Script Web App URL（空ならスプレッドシート連携OFF）
 }
 
 // ローカル在庫数量管理

@@ -26,6 +26,7 @@ export default function Onboarding() {
         closeTime: '22:00',
         onboarded: true,
         notifyEmail: email,
+        gasUrl: '',
       },
       employees: [
         { id: generateId(), name: userName, role: 'manager', hourlyWage: 1200, joinedDate: new Date().toISOString().split('T')[0] },

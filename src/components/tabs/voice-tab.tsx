@@ -210,10 +210,7 @@ function VoiceLogView() {
     setSaved(true);
   };
 
-  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzrc4vzBiZOkeWLD8nEZ-GLZNraYu6NZ6ZZjMhd4RlRi5E_QJP8-hxL6xjazzKY6BDI/exec';
-  const GAS_URL = typeof window !== 'undefined'
-    ? (localStorage.getItem('tebanashi-gas-url') ?? DEFAULT_GAS_URL)
-    : DEFAULT_GAS_URL;
+  const GAS_URL = state.settings.gasUrl || '';
 
   const handleSendToSheet = async () => {
     if (!classified) return;
@@ -364,9 +361,11 @@ function VoiceLogView() {
             ) : (
               <Badge className="flex-1 justify-center py-2 bg-green-50 text-green-600 text-sm rounded-xl">保存済み</Badge>
             )}
-            <Button onClick={handleSendToSheet} variant="outline" className="flex-1 rounded-xl" disabled={sending}>
-              <Send className="w-4 h-4 mr-1" />{sending ? '送信中...' : 'スプレッドシートに送信'}
-            </Button>
+            {GAS_URL && (
+              <Button onClick={handleSendToSheet} variant="outline" className="flex-1 rounded-xl" disabled={sending}>
+                <Send className="w-4 h-4 mr-1" />{sending ? '送信中...' : 'スプレッドシートに送信'}
+              </Button>
+            )}
           </div>
           {sendResult === 'success' && <p className="text-sm text-green-500 text-center">スプレッドシートに送信しました</p>}
           {sendResult === 'error' && <p className="text-sm text-red-500 text-center">送信に失敗しました。GAS URLを確認してください</p>}
@@ -468,10 +467,7 @@ function MasterRegistrationView() {
     setState((s) => ({ ...s, inventoryItems: s.inventoryItems.filter((i) => i.id !== id) }));
   };
 
-  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzrc4vzBiZOkeWLD8nEZ-GLZNraYu6NZ6ZZjMhd4RlRi5E_QJP8-hxL6xjazzKY6BDI/exec';
-  const GAS_URL = typeof window !== 'undefined'
-    ? (localStorage.getItem('tebanashi-gas-url') ?? DEFAULT_GAS_URL)
-    : DEFAULT_GAS_URL;
+  const GAS_URL = state.settings.gasUrl || '';
 
   const syncMasterToSheet = async () => {
     setSending(true);
@@ -617,12 +613,16 @@ function MasterRegistrationView() {
         </CardContent>
       </Card>
 
-      {/* スプレッドシート同期 */}
-      <Button onClick={syncMasterToSheet} variant="outline" className="w-full rounded-xl" disabled={sending || state.inventoryItems.length === 0}>
-        <Send className="w-4 h-4 mr-1" />{sending ? '送信中...' : 'スプレッドシートに商品マスタを同期'}
-      </Button>
-      {sendResult === 'success' && <p className="text-sm text-green-500 text-center">商品マスタを同期しました</p>}
-      {sendResult === 'error' && <p className="text-sm text-red-500 text-center">同期に失敗しました</p>}
+      {/* スプレッドシート同期（GAS URL設定時のみ表示） */}
+      {GAS_URL && (
+        <>
+          <Button onClick={syncMasterToSheet} variant="outline" className="w-full rounded-xl" disabled={sending || state.inventoryItems.length === 0}>
+            <Send className="w-4 h-4 mr-1" />{sending ? '送信中...' : 'スプレッドシートに商品マスタを同期'}
+          </Button>
+          {sendResult === 'success' && <p className="text-sm text-green-500 text-center">商品マスタを同期しました</p>}
+          {sendResult === 'error' && <p className="text-sm text-red-500 text-center">同期に失敗しました</p>}
+        </>
+      )}
 
       {/* 登録済み商品一覧（食材/備品別） */}
       <div className="space-y-4">

@@ -11,10 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
 import type { Employee, TaskTemplate, InventoryItem, Recipe, RecipeStep } from '@/lib/types';
-import { Users, ClipboardList, Package, Plus, Trash2, Edit2, Save, X, Store, Star, HandMetal, Zap, Target, ChefHat } from 'lucide-react';
+import { Users, ClipboardList, Package, Plus, Trash2, Edit2, Save, X, Store, Star, HandMetal, Zap, Target, ChefHat, Link2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
-type Section = 'store' | 'targets' | 'employees' | 'tasks' | 'recipes' | 'inventory' | 'evaluation';
+type Section = 'store' | 'targets' | 'employees' | 'tasks' | 'recipes' | 'inventory' | 'evaluation' | 'spreadsheet';
 
 export default function SettingsTab() {
   const { state, setState } = useAppState();
@@ -28,6 +28,7 @@ export default function SettingsTab() {
     { id: 'recipes', label: 'レシピ管理', icon: <ChefHat className="w-4 h-4" />, count: (state.recipes ?? []).length },
     { id: 'inventory', label: '食材品目', icon: <Package className="w-4 h-4" />, count: state.inventoryItems.length },
     { id: 'evaluation', label: '評価基準', icon: <Star className="w-4 h-4" />, count: state.evaluationCriteria.length },
+    { id: 'spreadsheet', label: 'スプレッドシート連携', icon: <Link2 className="w-4 h-4" /> },
   ];
 
   return (
@@ -53,6 +54,7 @@ export default function SettingsTab() {
       {section === 'recipes' && <RecipeSection />}
       {section === 'inventory' && <InventorySection />}
       {section === 'evaluation' && <EvaluationSection />}
+      {section === 'spreadsheet' && <SpreadsheetSection />}
     </div>
   );
 }
@@ -571,6 +573,101 @@ function EvaluationSection() {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+function SpreadsheetSection() {
+  const { state, setState } = useAppState();
+  const [gasUrl, setGasUrl] = useState(state.settings.gasUrl ?? '');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+
+  const save = () => {
+    setState((s) => ({ ...s, settings: { ...s.settings, gasUrl } }));
+    setTestResult(null);
+  };
+
+  const disconnect = () => {
+    setGasUrl('');
+    setState((s) => ({ ...s, settings: { ...s.settings, gasUrl: '' } }));
+    setTestResult(null);
+  };
+
+  const testConnection = async () => {
+    if (!gasUrl) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${gasUrl}?action=health`);
+      const data = await res.json();
+      setTestResult(data.status === 'ok' ? 'success' : 'error');
+    } catch {
+      setTestResult('error');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const isConnected = !!(state.settings.gasUrl);
+
+  return (
+    <div className="space-y-3">
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="py-3">
+          <p className="text-sm text-blue-800 font-medium">Googleスプレッドシート連携</p>
+          <p className="text-xs text-blue-700 mt-1">
+            GAS（Google Apps Script）のWeb App URLを設定すると、音声ログや商品マスタをスプレッドシートに自動送信できます。未設定でもアプリ内で在庫管理は可能です。
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Link2 className="w-4 h-4" />
+            GAS Web App URL
+            {isConnected && <Badge className="bg-green-50 text-green-600 text-[10px] rounded-full">接続中</Badge>}
+            {!isConnected && <Badge className="bg-gray-100 text-gray-500 text-[10px] rounded-full">未設定</Badge>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            value={gasUrl}
+            onChange={(e) => { setGasUrl(e.target.value); setTestResult(null); }}
+            placeholder="https://script.google.com/macros/s/.../exec"
+            className="text-xs"
+          />
+          <div className="flex gap-2">
+            <Button onClick={save} className="flex-1 bg-violet-600 hover:bg-violet-700" disabled={gasUrl === (state.settings.gasUrl ?? '')}>
+              <Save className="w-4 h-4 mr-1" />保存
+            </Button>
+            <Button onClick={testConnection} variant="outline" className="flex-1" disabled={!gasUrl || testing}>
+              {testing ? '接続中...' : '接続テスト'}
+            </Button>
+          </div>
+          {isConnected && (
+            <Button onClick={disconnect} variant="outline" className="w-full text-red-500 border-red-200 hover:bg-red-50">
+              連携を解除
+            </Button>
+          )}
+          {testResult === 'success' && <p className="text-sm text-green-600 text-center">接続成功</p>}
+          {testResult === 'error' && <p className="text-sm text-red-600 text-center">接続失敗。URLを確認してください</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">設定手順</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-xs text-gray-600">
+          <p>1. Googleスプレッドシートを新規作成</p>
+          <p>2.「拡張機能」→「Apps Script」を開く</p>
+          <p>3. GASコード（gas/inventory-logger.gs）を貼り付け</p>
+          <p>4. CONFIGのSPREADSHEET_IDにスプレッドシートのIDを入力</p>
+          <p>5. setup() を実行してシートを作成</p>
+          <p>6.「デプロイ」→「新しいデプロイ」→ ウェブアプリとして公開</p>
+          <p>7. 生成されたURLを上の欄に貼り付けて保存</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
