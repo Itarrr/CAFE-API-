@@ -407,6 +407,10 @@ function MasterRegistrationView() {
   const [newUnit, setNewUnit] = useState('個');
   const [newItemType, setNewItemType] = useState<InventoryItemType>('food');
   const [bulkItemType, setBulkItemType] = useState<InventoryItemType>('food');
+  const [newMinStock, setNewMinStock] = useState('3');
+  const [newOrderQty, setNewOrderQty] = useState('5');
+  const [bulkMinStock, setBulkMinStock] = useState('3');
+  const [bulkOrderQty, setBulkOrderQty] = useState('5');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<'success' | 'error' | null>(null);
 
@@ -422,10 +426,11 @@ function MasterRegistrationView() {
     setState((s) => ({
       ...s,
       inventoryItems: [...s.inventoryItems, {
-        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, itemType: newItemType, minStock: 3, orderQuantity: 5, costPerUnit: 0,
+        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, itemType: newItemType,
+        minStock: Number(newMinStock) || 3, orderQuantity: Number(newOrderQty) || 5, costPerUnit: 0,
       }],
     }));
-    setNewName(''); setNewCategory(''); setNewUnit('個');
+    setNewName(''); setNewCategory(''); setNewUnit('個'); setNewMinStock('3'); setNewOrderQty('5');
   };
 
   const registerBulk = () => {
@@ -439,7 +444,6 @@ function MasterRegistrationView() {
 
     for (const line of lines) {
       if (line.startsWith('アイテム名') || line.startsWith('商品名') || line.startsWith('品目')) continue;
-      // タブ区切り優先、なければ2つ以上のスペース、最後にカンマ区切り
       const cols = line.includes('\t')
         ? line.split('\t').map((c) => c.trim())
         : line.includes(',')
@@ -448,13 +452,15 @@ function MasterRegistrationView() {
       const name = cols[0] ?? '';
       const category = cols[1] || '未分類';
       const unit = cols[2] || '個';
+      const minStock = Number(cols[3]) || Number(bulkMinStock) || 3;
+      const orderQuantity = Number(cols[4]) || Number(bulkOrderQty) || 5;
 
       if (!name || existingNames.has(name) || pendingNames.has(name)) {
         skipped += 1;
         continue;
       }
       pendingNames.add(name);
-      toAdd.push({ id: generateId(), name, category, unit, itemType: bulkItemType, minStock: 3, orderQuantity: 5, costPerUnit: 0 });
+      toAdd.push({ id: generateId(), name, category, unit, itemType: bulkItemType, minStock, orderQuantity, costPerUnit: 0 });
     }
 
     if (toAdd.length > 0) {
@@ -566,16 +572,26 @@ function MasterRegistrationView() {
           <ItemTypeToggle value={newItemType} onChange={setNewItemType} />
           <div className="flex gap-2">
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="商品名" className="flex-1 rounded-xl" />
-            <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="カテゴリ" className="w-28 rounded-xl" list="cat-list" />
+            <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="カテゴリ" className="w-24 rounded-xl" list="cat-list" />
             <datalist id="cat-list">
               {categories.map((c) => <option key={c} value={c} />)}
             </datalist>
-            <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className="border rounded-xl px-2 text-sm bg-white w-16">
+            <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className="border rounded-xl px-2 text-sm bg-white w-14">
               {['個', '本', '袋', '缶', 'パック', 'kg', 'g', 'L', '瓶', '箱', '枚', 'ロール', 'セット'].map((u) => (
                 <option key={u} value={u}>{u}</option>
               ))}
             </select>
-            <Button size="icon" onClick={addSingle} className="bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl" disabled={!newName.trim()}>
+          </div>
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0">最低</span>
+              <Input type="number" value={newMinStock} onChange={(e) => setNewMinStock(e.target.value)} className="rounded-xl h-8 text-xs" />
+            </div>
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0">発注</span>
+              <Input type="number" value={newOrderQty} onChange={(e) => setNewOrderQty(e.target.value)} className="rounded-xl h-8 text-xs" />
+            </div>
+            <Button size="icon" onClick={addSingle} className="bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl shrink-0" disabled={!newName.trim()}>
               <Plus className="w-4 h-4" />
             </Button>
           </div>
@@ -591,14 +607,24 @@ function MasterRegistrationView() {
         </CardHeader>
         <CardContent className="space-y-3">
           <ItemTypeToggle value={bulkItemType} onChange={setBulkItemType} />
-          <p className="text-xs text-gray-400">タブ区切りで貼り付け: 商品名 / カテゴリ / 単位（1行1商品）</p>
+          <p className="text-xs text-gray-400">商品名,カテゴリ,単位,最低在庫,発注数（4・5列目は省略可）</p>
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0">デフォルト最低</span>
+              <Input type="number" value={bulkMinStock} onChange={(e) => setBulkMinStock(e.target.value)} className="rounded-xl h-7 text-xs" />
+            </div>
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0">デフォルト発注</span>
+              <Input type="number" value={bulkOrderQty} onChange={(e) => setBulkOrderQty(e.target.value)} className="rounded-xl h-7 text-xs" />
+            </div>
+          </div>
           <Textarea
             value={bulkText}
             onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
             rows={6}
             placeholder={bulkItemType === 'food'
-              ? '牛乳\t乳製品\t本\nトマト\t野菜\t個\nコーヒー豆\t飲料\tkg'
-              : 'ナプキン\t消耗品\t袋\nテイクアウトカップ\t消耗品\t袋\nゴミ袋\t消耗品\tロール'}
+              ? '牛乳,乳製品,本,3,10\nトマト,野菜,個,5,20\nコーヒー豆,飲料,kg'
+              : 'ナプキン,消耗品,袋,2,5\nテイクアウトカップ,消耗品,袋\nゴミ袋,消耗品,ロール'}
             className="text-sm rounded-xl font-mono"
           />
           <Button onClick={registerBulk} className="w-full bg-[#ff6b6b] hover:bg-[#e05555] rounded-xl" disabled={!bulkText.trim()}>
