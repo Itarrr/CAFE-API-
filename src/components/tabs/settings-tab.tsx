@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAppState } from '@/lib/context';
 import { generateId } from '@/lib/store';
 import type { Employee, TaskTemplate, InventoryItem, Recipe, RecipeStep } from '@/lib/types';
-import { Users, ClipboardList, Package, Plus, Trash2, Edit2, Save, X, Store, Star, HandMetal, Zap, Target, ChefHat, Link2 } from 'lucide-react';
+import { Users, ClipboardList, Package, Plus, Trash2, Edit2, Save, X, Store, Star, HandMetal, Zap, Target, ChefHat, Link2, LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { Switch } from '@/components/ui/switch';
 
 type Section = 'store' | 'targets' | 'employees' | 'tasks' | 'recipes' | 'inventory' | 'evaluation' | 'spreadsheet';
@@ -55,6 +56,22 @@ export default function SettingsTab() {
       {section === 'inventory' && <InventorySection />}
       {section === 'evaluation' && <EvaluationSection />}
       {section === 'spreadsheet' && <SpreadsheetSection />}
+
+      {/* ログアウト */}
+      <Card className="rounded-2xl border-0 shadow-sm mt-4">
+        <CardContent className="py-3">
+          <Button
+            variant="outline"
+            className="w-full text-red-500 border-red-200 hover:bg-red-50 rounded-xl"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.reload();
+            }}
+          >
+            <LogOut className="w-4 h-4 mr-2" />ログアウト
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
