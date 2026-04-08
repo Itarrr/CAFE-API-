@@ -470,6 +470,17 @@ function MasterRegistrationView() {
     }
   };
 
+  const clearAll = () => {
+    if (!confirm('登録済みの商品をすべて削除しますか？')) return;
+    setState((s) => ({ ...s, inventoryItems: [] }));
+  };
+
+  const clearByType = (type: InventoryItemType) => {
+    const label = type === 'food' ? '食材' : '備品';
+    if (!confirm(`${label}をすべて削除しますか？`)) return;
+    setState((s) => ({ ...s, inventoryItems: s.inventoryItems.filter((i) => (i.itemType ?? 'food') !== type) }));
+  };
+
   const typeLabel = (t: InventoryItemType) => t === 'food' ? '食材' : '備品';
 
   const renderItemGroup = (title: string, items: typeof state.inventoryItems, color: string) => {
@@ -590,6 +601,20 @@ function MasterRegistrationView() {
 
       {/* 登録済み商品一覧（食材/備品別） */}
       <div className="space-y-4">
+        {state.inventoryItems.length > 0 && (
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm text-gray-400">登録済み: {state.inventoryItems.length}件</span>
+            <div className="flex gap-2">
+              {foodItems.length > 0 && (
+                <button onClick={() => clearByType('food')} className="text-xs text-orange-400 hover:text-orange-600">食材を全削除</button>
+              )}
+              {supplyItems.length > 0 && (
+                <button onClick={() => clearByType('supply')} className="text-xs text-blue-400 hover:text-blue-600">備品を全削除</button>
+              )}
+              <button onClick={clearAll} className="text-xs text-red-400 hover:text-red-600">全削除</button>
+            </div>
+          </div>
+        )}
         {foodItems.length > 0 && renderItemGroup('食材', foodItems, 'text-orange-500')}
         {supplyItems.length > 0 && renderItemGroup('備品', supplyItems, 'text-blue-500')}
         {state.inventoryItems.length === 0 && (
