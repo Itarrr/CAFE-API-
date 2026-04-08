@@ -23,28 +23,46 @@ function classifyText(text: string, masterItems: string[]): VoiceLogClassified {
 
   const urgentKeywords = ['緊急', '至急', '切れ', 'ない', 'ゼロ', '不足'];
   const inventoryKeywords = ['消費', '入荷', '残量', '確認', '個', '本', '枚', 'キロ', '補充', '使用', '仕入'];
+  const handoverTriggers = ['引き継ぎ', '引継ぎ', 'ひきつぎ', '申し送り', '申送り', '連絡事項'];
 
   const urgent: string[] = [];
   const inventory: string[] = [];
   const inventoryParsed: ParsedInventoryItem[] = [];
   const handover: string[] = [];
 
-  for (const sentence of sentences) {
-    // マスタ登録済みの商品名が含まれていたら在庫として分類
-    const hasMasterItem = masterItems.some((item) => sentence.includes(item));
+  // 引き継ぎモード: トリガーワードが出たら、以降の文を引き継ぎとして拾う
+  let handoverMode = false;
 
-    if (urgentKeywords.some((kw) => sentence.includes(kw))) {
+  for (const sentence of sentences) {
+    // 引き継ぎトリガーを含む文 → 引き継ぎモードON
+    const hasHandoverTrigger = handoverTriggers.some((kw) => sentence.includes(kw));
+    if (hasHandoverTrigger) {
+      handoverMode = true;
+      // トリガーワードの後ろに内容があればそれも引き継ぎに含める
+      // 例: "引き継ぎですが、明日シフト変更あります" → 全文を引き継ぎに
+      handover.push(sentence);
+      continue;
+    }
+
+    // 引き継ぎモード中は、緊急・在庫以外を引き継ぎとして拾う
+    const hasMasterItem = masterItems.some((item) => sentence.includes(item));
+    const isUrgent = urgentKeywords.some((kw) => sentence.includes(kw));
+    const isInventory = hasMasterItem || inventoryKeywords.some((kw) => sentence.includes(kw));
+
+    if (isUrgent) {
       urgent.push(sentence);
-      // 緊急でも在庫パースを試みる
       const parsed = parseInventorySentence(sentence, masterItems);
       if (parsed) { inventory.push(sentence); inventoryParsed.push(parsed); }
-    } else if (hasMasterItem || inventoryKeywords.some((kw) => sentence.includes(kw))) {
+      // 緊急は引き継ぎモードをリセットしない
+    } else if (isInventory) {
       inventory.push(sentence);
       const parsed = parseInventorySentence(sentence, masterItems);
       if (parsed) inventoryParsed.push(parsed);
-    } else {
+    } else if (handoverMode) {
+      // 引き継ぎモード中 → 引き継ぎに追加
       handover.push(sentence);
     }
+    // それ以外（雑談等）は何もしない → 捨てる
   }
 
   return { urgent, inventory, inventoryParsed, handover };
