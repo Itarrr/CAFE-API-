@@ -409,8 +409,6 @@ function MasterRegistrationView() {
   const [bulkItemType, setBulkItemType] = useState<InventoryItemType>('food');
   const [newMinStock, setNewMinStock] = useState('3');
   const [newOrderQty, setNewOrderQty] = useState('5');
-  const [bulkMinStock, setBulkMinStock] = useState('3');
-  const [bulkOrderQty, setBulkOrderQty] = useState('5');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<'success' | 'error' | null>(null);
 
@@ -452,8 +450,8 @@ function MasterRegistrationView() {
       const name = cols[0] ?? '';
       const category = cols[1] || '未分類';
       const unit = cols[2] || '個';
-      const minStock = Number(cols[3]) || Number(bulkMinStock) || 3;
-      const orderQuantity = Number(cols[4]) || Number(bulkOrderQty) || 5;
+      const minStock = Number(cols[3]) || 3;
+      const orderQuantity = Number(cols[4]) || 5;
 
       if (!name || existingNames.has(name) || pendingNames.has(name)) {
         skipped += 1;
@@ -607,17 +605,7 @@ function MasterRegistrationView() {
         </CardHeader>
         <CardContent className="space-y-3">
           <ItemTypeToggle value={bulkItemType} onChange={setBulkItemType} />
-          <p className="text-xs text-gray-400">商品名,カテゴリ,単位,最低在庫,発注数（4・5列目は省略可）</p>
-          <div className="flex gap-2 items-center">
-            <div className="flex items-center gap-1 flex-1">
-              <span className="text-[10px] text-gray-400 shrink-0">デフォルト最低</span>
-              <Input type="number" value={bulkMinStock} onChange={(e) => setBulkMinStock(e.target.value)} className="rounded-xl h-7 text-xs" />
-            </div>
-            <div className="flex items-center gap-1 flex-1">
-              <span className="text-[10px] text-gray-400 shrink-0">デフォルト発注</span>
-              <Input type="number" value={bulkOrderQty} onChange={(e) => setBulkOrderQty(e.target.value)} className="rounded-xl h-7 text-xs" />
-            </div>
-          </div>
+          <p className="text-xs text-gray-400">商品名,カテゴリ,単位,最低在庫,発注数</p>
           <Textarea
             value={bulkText}
             onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
