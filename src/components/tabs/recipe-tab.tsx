@@ -293,9 +293,28 @@ function InventoryView() {
   const { state } = useAppState();
   const [tab, setTab] = useState<'food' | 'supply'>('food');
 
+  // 商品マスタ + ローカル在庫を統合（マスタに登録された品目は全て表示）
   const localStock = state.localStock ?? [];
-  const foodItems = localStock.filter((i) => (i.itemType ?? 'food') === 'food');
-  const supplyItems = localStock.filter((i) => i.itemType === 'supply');
+  const mergedItems = state.inventoryItems.map((master) => {
+    const stock = localStock.find((s) => s.itemName === master.name);
+    return {
+      itemName: master.name,
+      quantity: stock?.quantity ?? 0,
+      unit: master.unit,
+      category: master.category,
+      itemType: master.itemType ?? 'food' as const,
+      lastUpdated: stock?.lastUpdated ?? '',
+    };
+  });
+  // マスタにないがlocalStockにある品目も追加
+  for (const stock of localStock) {
+    if (!state.inventoryItems.some((m) => m.name === stock.itemName)) {
+      mergedItems.push(stock);
+    }
+  }
+
+  const foodItems = mergedItems.filter((i) => (i.itemType ?? 'food') === 'food');
+  const supplyItems = mergedItems.filter((i) => i.itemType === 'supply');
 
   const currentItems = tab === 'food' ? foodItems : supplyItems;
 
