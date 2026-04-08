@@ -46,31 +46,25 @@ function handleSyncMaster(json) {
   var foodSheet = getOrCreateSheet(ss, SHEET_MASTER_FOOD, ['商品名', 'カテゴリ', '単位', '登録日']);
   var supplySheet = getOrCreateSheet(ss, SHEET_MASTER_SUPPLY, ['商品名', 'カテゴリ', '単位', '登録日']);
 
-  // 既存データを取得（両シートから）
-  var existingNames = {};
-  var sheets = [foodSheet, supplySheet];
-  for (var s = 0; s < sheets.length; s++) {
-    var lastRow = sheets[s].getLastRow();
-    if (lastRow >= 2) {
-      var data = sheets[s].getRange(2, 1, lastRow - 1, 1).getValues();
-      for (var i = 0; i < data.length; i++) {
-        existingNames[String(data[i][0]).trim()] = true;
-      }
-    }
-  }
+  // 両シートをクリアして全件書き直す（食材/備品の移動に対応）
+  clearSheetData(foodSheet);
+  clearSheetData(supplySheet);
 
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  var added = 0;
+  var foodCount = 0;
+  var supplyCount = 0;
+
   for (var j = 0; j < items.length; j++) {
     var name = String(items[j].name).trim();
-    if (!name || existingNames[name]) continue;
-    var targetSheet = (items[j].itemType === 'supply') ? supplySheet : foodSheet;
+    if (!name) continue;
+    var isSupply = (String(items[j].itemType) === 'supply');
+    var targetSheet = isSupply ? supplySheet : foodSheet;
     targetSheet.appendRow([name, items[j].category || '未分類', items[j].unit || '個', today]);
-    existingNames[name] = true;
-    added++;
+    if (isSupply) { supplyCount++; } else { foodCount++; }
   }
 
   // 各シートをカテゴリ別にソート
+  var sheets = [foodSheet, supplySheet];
   for (var k = 0; k < sheets.length; k++) {
     var totalRows = sheets[k].getLastRow();
     if (totalRows >= 3) {
@@ -79,7 +73,7 @@ function handleSyncMaster(json) {
     colorByCategory(sheets[k]);
   }
 
-  return buildResponse(200, { status: 'ok', added: added, total: Object.keys(existingNames).length });
+  return buildResponse(200, { status: 'ok', food: foodCount, supply: supplyCount, total: foodCount + supplyCount });
 }
 
 // ============================================================
@@ -330,6 +324,18 @@ function getOrCreateSheet(ss, name, headers) {
     sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+/** ヘッダー行を残してデータをクリア */
+function clearSheetData(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clear();
+    // 空行を削除
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+  }
 }
 
 /** カテゴリ別に交互背景色 */
