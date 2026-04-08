@@ -27,6 +27,7 @@ export default function Onboarding() {
         onboarded: true,
         notifyEmail: email,
         gasUrl: '',
+        shoppingDay: 1,
       },
       employees: [
         { id: generateId(), name: userName, role: 'manager', hourlyWage: 1200, joinedDate: new Date().toISOString().split('T')[0] },
@@ -44,10 +45,10 @@ export default function Onboarding() {
         { id: generateId(), title: '冷蔵庫清掃・整理', category: '清掃', description: '冷蔵庫内の清掃・賞味期限チェック・整理', videoUrl: '', points: 25, repeatable: false, estimateMinutes: 20 },
       ],
       inventoryItems: [
-        { id: generateId(), name: 'コーヒー豆', unit: 'kg', category: '飲料', itemType: 'food' as const, costPerUnit: 2500 },
-        { id: generateId(), name: '牛乳', unit: 'L', category: '乳製品', itemType: 'food' as const, costPerUnit: 250 },
-        { id: generateId(), name: '砂糖', unit: 'kg', category: '調味料', itemType: 'food' as const, costPerUnit: 300 },
-        { id: generateId(), name: 'パン', unit: '個', category: '食材', itemType: 'food' as const, costPerUnit: 150 },
+        { id: generateId(), name: 'コーヒー豆', unit: 'kg', category: '飲料', itemType: 'food' as const, minStock: 3, orderQuantity: 5, costPerUnit: 2500 },
+        { id: generateId(), name: '牛乳', unit: 'L', category: '乳製品', itemType: 'food' as const, minStock: 3, orderQuantity: 5, costPerUnit: 250 },
+        { id: generateId(), name: '砂糖', unit: 'kg', category: '調味料', itemType: 'food' as const, minStock: 3, orderQuantity: 5, costPerUnit: 300 },
+        { id: generateId(), name: 'パン', unit: '個', category: '食材', itemType: 'food' as const, minStock: 3, orderQuantity: 5, costPerUnit: 150 },
       ],
     }));
   };

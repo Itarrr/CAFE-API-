@@ -5,6 +5,7 @@ export interface StoreSettings {
   onboarded: boolean;
   notifyEmail: string;     // 通知先メールアドレス
   gasUrl: string;          // Google Apps Script Web App URL（空ならスプレッドシート連携OFF）
+  shoppingDay: number;     // 買い出し曜日 (0=日, 1=月, ... 6=土), -1=毎日チェック
 }
 
 // ローカル在庫数量管理
@@ -147,6 +148,8 @@ export interface InventoryItem {
   category: string;
   itemType: InventoryItemType; // 食材 or 備品
   costPerUnit: number;
+  minStock: number;            // この数以下になったら買い出しリストに入る
+  orderQuantity: number;       // 発注数
 }
 
 export interface InventoryRecord {

@@ -355,7 +355,7 @@ function InventorySection() {
     if (!name.trim()) return;
     setState((s) => ({
       ...s,
-      inventoryItems: [...s.inventoryItems, { id: generateId(), name, unit, category: cat, itemType: 'food' as const, costPerUnit: Number(cost) }],
+      inventoryItems: [...s.inventoryItems, { id: generateId(), name, unit, category: cat, itemType: 'food' as const, minStock: 3, orderQuantity: 5, costPerUnit: Number(cost) }],
     }));
     setName(''); setUnit(''); setCat(''); setCost('');
   };

@@ -422,7 +422,7 @@ function MasterRegistrationView() {
     setState((s) => ({
       ...s,
       inventoryItems: [...s.inventoryItems, {
-        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, itemType: newItemType, costPerUnit: 0,
+        id: generateId(), name: newName.trim(), category: newCategory || '未分類', unit: newUnit, itemType: newItemType, minStock: 3, orderQuantity: 5, costPerUnit: 0,
       }],
     }));
     setNewName(''); setNewCategory(''); setNewUnit('個');
@@ -454,7 +454,7 @@ function MasterRegistrationView() {
         continue;
       }
       pendingNames.add(name);
-      toAdd.push({ id: generateId(), name, category, unit, itemType: bulkItemType, costPerUnit: 0 });
+      toAdd.push({ id: generateId(), name, category, unit, itemType: bulkItemType, minStock: 3, orderQuantity: 5, costPerUnit: 0 });
     }
 
     if (toAdd.length > 0) {

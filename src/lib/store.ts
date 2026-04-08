@@ -10,7 +10,7 @@ function emptyDailySales(today: string): DailySalesData {
 }
 
 const defaultState: AppState = {
-  settings: { storeName: '', openTime: '09:00', closeTime: '22:00', onboarded: false, notifyEmail: '', gasUrl: '' },
+  settings: { storeName: '', openTime: '09:00', closeTime: '22:00', onboarded: false, notifyEmail: '', gasUrl: '', shoppingDay: 1 },
   employees: [],
   taskTemplates: [],
   taskCompletions: [],
@@ -75,7 +75,12 @@ export function loadState(): AppState {
       ...item,
       itemType: item.itemType ?? 'food',
     }));
-    state.settings = { ...state.settings, notifyEmail: state.settings.notifyEmail ?? '', gasUrl: state.settings.gasUrl ?? '' };
+    state.settings = { ...state.settings, notifyEmail: state.settings.notifyEmail ?? '', gasUrl: state.settings.gasUrl ?? '', shoppingDay: state.settings.shoppingDay ?? 1 };
+    state.inventoryItems = state.inventoryItems.map((item) => ({
+      ...item,
+      minStock: item.minStock ?? 3,
+      orderQuantity: item.orderQuantity ?? 5,
+    }));
     state.localStock = state.localStock ?? [];
     const today = format(new Date(), 'yyyy-MM-dd');
     if (state.lastOpenedDate !== today) {
