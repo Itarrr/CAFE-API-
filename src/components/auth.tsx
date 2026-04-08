@@ -15,15 +15,33 @@ export default function Auth({ onAuth }: { onAuth: () => void }) {
   const [storeName, setStoreName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmSent, setConfirmSent] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) return;
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setError('メールアドレスまたはパスワードが間違っています');
-    } else {
+      if (error.message.includes('Email not confirmed')) {
+        setError('メールアドレスの確認が完了していません。受信トレイを確認してください');
+      } else {
+        setError('メールアドレスまたはパスワードが間違っています');
+      }
+    } else if (data.user) {
+      // 初回ログイン時にapp_dataがなければ作成
+      const { data: existing } = await supabase
+        .from('app_data')
+        .select('id')
+        .eq('user_id', data.user.id)
+        .single();
+      if (!existing) {
+        await supabase.from('app_data').insert({
+          user_id: data.user.id,
+          store_name: data.user.user_metadata?.store_name || '',
+          data: {},
+        });
+      }
       onAuth();
     }
     setLoading(false);
@@ -34,17 +52,31 @@ export default function Auth({ onAuth }: { onAuth: () => void }) {
     if (password.length < 6) { setError('パスワードは6文字以上にしてください'); return; }
     setLoading(true);
     setError('');
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { store_name: storeName || '' },
+      },
+    });
     if (error) {
       setError(error.message.includes('already') ? 'このメールアドレスは既に登録されています' : error.message);
     } else if (data.user) {
-      // 新規ユーザーのapp_dataを作成
-      await supabase.from('app_data').insert({
-        user_id: data.user.id,
-        store_name: storeName || '',
-        data: {},
-      });
-      onAuth();
+      // メール確認が必要な場合
+      if (data.user.identities?.length === 0) {
+        setError('このメールアドレスは既に登録されています');
+      } else if (!data.session) {
+        // セッションがない = メール確認待ち
+        setConfirmSent(true);
+      } else {
+        // メール確認不要（即ログイン）
+        await supabase.from('app_data').insert({
+          user_id: data.user.id,
+          store_name: storeName || '',
+          data: {},
+        });
+        onAuth();
+      }
     }
     setLoading(false);
   };
@@ -53,6 +85,37 @@ export default function Auth({ onAuth }: { onAuth: () => void }) {
     if (mode === 'login') handleLogin();
     else handleSignup();
   };
+
+  // 確認メール送信後の画面
+  if (confirmSent) {
+    return (
+      <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center p-4">
+        <Card className="w-full max-w-sm shadow-lg border-0 rounded-3xl">
+          <CardContent className="pt-8 pb-6 px-6 text-center">
+            <div className="w-16 h-16 bg-green-500 rounded-3xl flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-white" />
+            </div>
+            <CardTitle className="text-lg">確認メールを送信しました</CardTitle>
+            <p className="text-sm text-gray-500 mt-3">
+              <span className="font-medium text-gray-700">{email}</span> に確認メールを送りました。
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              メール内のリンクをクリックして登録を完了してください。
+            </p>
+            <div className="bg-amber-50 rounded-xl p-3 mt-4">
+              <p className="text-xs text-amber-700">メールが届かない場合は迷惑メールフォルダを確認してください</p>
+            </div>
+            <Button
+              onClick={() => { setConfirmSent(false); setMode('login'); }}
+              className="w-full h-12 mt-5 bg-[#ff6b6b] hover:bg-[#e05555] rounded-2xl text-base font-bold"
+            >
+              ログイン画面に戻る
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center p-4">
