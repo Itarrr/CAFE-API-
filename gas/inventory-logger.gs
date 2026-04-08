@@ -86,12 +86,13 @@ function handleVoiceLog(json) {
   var inventoryParsed = json.inventoryParsed  || [];
   var inventory       = json.inventory       || [];
   var handover        = json.handover        || [];
+  var itemTypeMap     = json.itemTypeMap     || {};  // { "ナプキン": "supply", "牛乳": "food", ... }
 
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 
   // ── 1. 在庫管理表を更新 ──
   if (inventoryParsed.length > 0) {
-    updateStockTable(ss, date, inventoryParsed);
+    updateStockTable(ss, date, inventoryParsed, itemTypeMap);
   }
 
   // ── 2. 在庫ログに詳細記録 ──
@@ -138,7 +139,7 @@ function doGet() {
 // ============================================================
 // 在庫管理表を更新
 // ============================================================
-function updateStockTable(ss, date, parsedItems) {
+function updateStockTable(ss, date, parsedItems, itemTypeMap) {
   var foodSheet = getOrCreateSheet(ss, SHEET_STOCK_FOOD, ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
   var supplySheet = getOrCreateSheet(ss, SHEET_STOCK_SUPPLY, ['品目', 'カテゴリ', '現在数', '単位', '最終更新']);
 
@@ -190,8 +191,8 @@ function updateStockTable(ss, date, parsedItems) {
     var action   = String(p.action);
     var master = masterMap[itemName];
     var cat = (master && master.category) || '未分類';
-    // POSTデータにitemTypeがあればそれを優先、なければマスタから、最終的にfood
-    var type = String(p.itemType || (master && master.itemType) || 'food');
+    // 優先順: ①POSTデータのitemType ②アプリから送られたitemTypeMap ③マスタシート ④food
+    var type = String(p.itemType || (itemTypeMap && itemTypeMap[itemName]) || (master && master.itemType) || 'food');
     var targetSheet = (type === 'supply') ? supplySheet : foodSheet;
 
     if (itemMap[itemName]) {

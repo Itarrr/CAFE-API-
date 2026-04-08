@@ -207,10 +207,16 @@ function VoiceLogView() {
           urgent: classified.urgent,
           inventory: classified.inventory,
           inventoryParsed: classified.inventoryParsed.map((p) => {
-            const masterItem = state.inventoryItems.find((i) => i.name === p.item);
+            // 完全一致 → 部分一致の順でマスタを検索
+            const masterItem = state.inventoryItems.find((i) => i.name === p.item)
+              ?? state.inventoryItems.find((i) => p.item.includes(i.name) || i.name.includes(p.item));
             return { ...p, itemType: masterItem?.itemType ?? 'food' };
           }),
           handover: classified.handover,
+          // GAS側でも参照できるよう商品タイプマップを送信
+          itemTypeMap: Object.fromEntries(
+            state.inventoryItems.map((i) => [i.name, i.itemType ?? 'food'])
+          ),
         }),
       });
       setSendResult(res.ok ? 'success' : 'error');
