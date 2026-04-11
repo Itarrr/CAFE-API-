@@ -44,23 +44,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...merged.settings,
             notifyEmail: merged.settings.notifyEmail ?? session.user.email ?? '',
             gasUrl: merged.settings.gasUrl ?? '',
+            spreadsheetUrl: merged.settings.spreadsheetUrl ?? '',
             shoppingDay: merged.settings.shoppingDay ?? 1,
           };
           merged.localStock = merged.localStock ?? [];
           setStateRaw(merged);
           saveState(merged); // localStorageにもキャッシュ
         } else {
-          // Supabaseにデータがない → localStorageから読み込み、Supabaseに初回保存
+          // Supabaseにデータがない → localStorageから読み込み
           const s = loadState();
           if (s.settings.notifyEmail === '' && session.user.email) {
             s.settings.notifyEmail = session.user.email;
           }
           setStateRaw(s);
-          await supabase.from('app_data').upsert({
-            user_id: session.user.id,
-            store_name: s.settings.storeName,
-            data: s,
-          });
+          // localStorageに実データがある場合のみSupabaseに保存（新規端末での上書き防止）
+          const hasLocalData = s.employees.length > 0
+            || s.inventoryItems.length > 0
+            || !!s.settings.storeName;
+          if (hasLocalData) {
+            await supabase.from('app_data').upsert({
+              user_id: session.user.id,
+              store_name: s.settings.storeName,
+              data: s,
+            }, { onConflict: 'user_id' });
+          }
         }
       } else {
         // ログインしていない場合（通常はauth画面に行くが念のため）
@@ -79,7 +86,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user_id: session.user.id,
       store_name: newState.settings.storeName,
       data: newState,
-    });
+    }, { onConflict: 'user_id' });
   }, []);
 
   const setState = useCallback((updater: (prev: AppState) => AppState) => {
